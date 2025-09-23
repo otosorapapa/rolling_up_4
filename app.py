@@ -4,7 +4,7 @@ import json
 import math
 import textwrap
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -119,7 +119,13 @@ from services import (
     shape_flags,
     detect_linear_anomalies,
 )
-from sample_data import load_sample_dataset
+from sample_data import (
+    SampleCSVMeta,
+    get_sample_csv_bytes,
+    list_sample_csv_meta,
+    load_sample_csv_dataframe,
+    load_sample_dataset,
+)
 from core.chart_card import toolbar_sku_detail, build_chart_card
 from core.plot_utils import apply_elegant_theme, render_plotly_with_spinner
 from core.correlation import (
@@ -652,6 +658,8 @@ if "tour_completed" not in st.session_state:
     st.session_state.tour_completed = False
 if "sample_data_notice" not in st.session_state:
     st.session_state.sample_data_notice = False
+if "sample_data_message" not in st.session_state:
+    st.session_state.sample_data_message = ""
 
 # track user interactions and global filters
 if "click_log" not in st.session_state:
@@ -987,6 +995,7 @@ def end_month_selector(
     key: str = "end_month",
     label: str = "終端月（年計の計算対象）",
     sidebar: bool = False,
+    help_text: Optional[str] = None,
 ):
     """Month selector that can be rendered either in the main area or sidebar."""
 
@@ -1000,6 +1009,7 @@ def end_month_selector(
         mopts,
         index=(len(mopts) - 1) if mopts else 0,
         key=key,
+        help=help_text or "集計結果を確認したい基準月を選択します。",
     )
 
 
@@ -1048,6 +1058,39 @@ def download_pdf_overview(kpi: dict, top_df: pd.DataFrame, filename: str) -> byt
     c.save()
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def process_long_dataframe(long_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Normalize long-form sales data and update session state tables."""
+
+    settings = st.session_state.settings
+    policy = settings.get("missing_policy", "zero_fill")
+    window = int(settings.get("window", 12) or 12)
+    last_n = int(settings.get("last_n", 12) or 12)
+
+    normalized = fill_missing_months(long_df.copy(), policy=policy)
+    year_df = compute_year_rolling(normalized, window=window, policy=policy)
+    year_df = compute_slopes(year_df, last_n=last_n)
+
+    st.session_state.data_monthly = normalized
+    st.session_state.data_year = year_df
+    return normalized, year_df
+
+
+def ingest_wide_dataframe(
+    df_raw: pd.DataFrame,
+    *,
+    product_name_col: str,
+    product_code_col: Optional[str] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Convert a wide table to normalized long/year tables and persist them."""
+
+    long_df = parse_uploaded_table(
+        df_raw,
+        product_name_col=product_name_col,
+        product_code_col=product_code_col,
+    )
+    return process_long_dataframe(long_df)
 
 
 def format_amount(val: Optional[float], unit: str) -> str:
@@ -2023,6 +2066,118 @@ def render_step_guide(active_nav_key: str) -> None:
     )
 
 
+def render_getting_started_intro() -> None:
+    """Show a short how-to guide with step hints and a demo video."""
+
+    st.markdown("### 3分でわかるスターターガイド")
+    steps = [
+        {
+            "title": "データをアップロード",
+            "body": "売上・仕入れ・経費のCSVを取り込み、商品名と月度を確認します。",
+        },
+        {
+            "title": "KPIをチェック",
+            "body": "ダッシュボードで年計・YoY・Δを確認し、気になるSKUをブックマーク。",
+        },
+        {
+            "title": "深掘り分析",
+            "body": "ランキングや相関分析で伸長/苦戦領域を深堀りし、AIコメントを参考に次のアクションを検討します。",
+        },
+    ]
+
+    col_steps, col_video = st.columns([3, 2])
+    with col_steps:
+        for idx, step in enumerate(steps, start=1):
+            st.markdown(f"**STEP {idx}. {step['title']}**")
+            st.write(step["body"])
+    with col_video:
+        st.video("https://www.youtube.com/watch?v=_9WiB2PDO7k")
+        st.caption("動画: ダッシュボードの使い方ガイド（約3分）")
+
+    with st.expander("操作のポイントを詳しく見る", expanded=False):
+        st.markdown(
+            "- **サイドバー**からページを移動すると、関連するヒントが自動でハイライトされます。\n"
+            "- **AIコパイロット**に質問すると、最新の年計スナップショットを踏まえた要約と推奨アクションが得られます。\n"
+            "- チャートの右上にあるツールバーから画像保存やデータダウンロードが可能です。",
+        )
+
+
+def render_sample_data_hub() -> None:
+    """Provide downloadable CSV samples and one-click loaders."""
+
+    sample_metas = list_sample_csv_meta()
+    if not sample_metas:
+        return
+
+    meta_lookup = {meta.key: meta for meta in sample_metas}
+    sample_keys = [meta.key for meta in sample_metas]
+    default_key = st.session_state.get("sample_data_selector", sample_metas[0].key)
+    sample_key = st.selectbox(
+        "サンプルデータの種類",
+        options=sample_keys,
+        index=sample_keys.index(default_key) if default_key in meta_lookup else 0,
+        format_func=lambda key: meta_lookup[key].title,
+        key="sample_data_selector",
+        help="業務別のCSVテンプレートを選び、列構成と数値例を確認します。",
+    )
+    selected_meta: SampleCSVMeta = meta_lookup.get(sample_key, sample_metas[0])
+
+    st.caption(selected_meta.description)
+    sample_df = load_sample_csv_dataframe(selected_meta.key)
+    st.dataframe(sample_df.head(5), use_container_width=True)
+
+    col_download, col_load = st.columns(2)
+    with col_download:
+        st.download_button(
+            f"{selected_meta.title}をダウンロード",
+            data=get_sample_csv_bytes(selected_meta.key),
+            file_name=selected_meta.download_name,
+            mime="text/csv",
+            help="CSVテンプレートをローカルに保存し、実データを追記してアップロードできます。",
+        )
+    with col_load:
+        if st.button(
+            f"{selected_meta.title}を読み込む",
+            key=f"load_sample_{selected_meta.key}",
+            help="サンプルCSVをアプリに読み込み、ダッシュボードをすぐに体験します。",
+        ):
+            try:
+                with st.spinner("サンプルデータを初期化しています…"):
+                    ingest_wide_dataframe(
+                        sample_df.copy(),
+                        product_name_col=selected_meta.name_column,
+                        product_code_col=selected_meta.code_column,
+                    )
+                st.session_state.sample_data_notice = True
+                st.session_state.sample_data_message = (
+                    f"{selected_meta.title}を読み込みました。ダッシュボードでサンプル指標を確認できます。"
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"サンプルデータの読込に失敗しました: {exc}")
+
+    with st.expander("ワンクリックでデモデータを試す", expanded=False):
+        st.markdown(
+            "時間がない場合は、あらかじめ用意した合成データセットを読み込み、全ページの動作を確認できます。"
+        )
+        if st.button(
+            "デモデータを読み込む",
+            key="load_demo_dataset",
+            help="売上トレンドを再現した合成データで、主要な分析ページをすぐに表示します。",
+        ):
+            try:
+                with st.spinner("デモデータを準備しています…"):
+                    demo_long = load_sample_dataset()
+                    process_long_dataframe(demo_long)
+                st.session_state.sample_data_notice = True
+                st.session_state.sample_data_message = (
+                    "デモデータを読み込みました。ダッシュボードで操作感を確認してください。"
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"デモデータの準備に失敗しました: {exc}")
+
+
 def render_breadcrumbs(category_key: str, page_key: str) -> None:
     page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
     if not page_meta:
@@ -2438,18 +2593,30 @@ st.sidebar.divider()
 
 with st.sidebar.expander("AIコパイロット", expanded=False):
     st.caption("最新の年計スナップショットを使って質問できます。")
+    default_question = st.session_state.get(
+        "copilot_question",
+        "直近の売上トレンドと注目SKUを教えて",
+    )
     st.text_area(
         "聞きたいこと",
+        value=default_question,
         key="copilot_question",
         height=90,
         placeholder="例：前年同月比が高いSKUや、下落しているSKUを教えて",
+        help="AIに知りたい内容を入力します。質問例もそのまま実行できます。",
     )
     focus = st.selectbox(
         "フォーカス",
         ["全体サマリー", "伸びているSKU", "苦戦しているSKU"],
         key="copilot_focus",
+        help="回答の視点を選択します。伸びているSKUを選ぶと成長している商品に絞った要約が得られます。",
     )
-    if st.button("AIに質問", key="ask_ai", use_container_width=True):
+    if st.button(
+        "AIに質問",
+        key="ask_ai",
+        use_container_width=True,
+        help="年計スナップショットに基づくAI分析を実行します。",
+    ):
         question = st.session_state.get("copilot_question", "").strip()
         if not question:
             st.warning("質問を入力してください。")
@@ -2482,43 +2649,29 @@ render_breadcrumbs(active_category, page_key)
 render_quick_nav_tabs(page_key)
 
 if st.session_state.get("sample_data_notice"):
-    st.success("サンプルデータを読み込みました。ダッシュボードからすぐに分析を確認できます。")
+    notice_text = st.session_state.get("sample_data_message") or (
+        "サンプルデータを読み込みました。ダッシュボードからすぐに分析を確認できます。"
+    )
+    st.success(notice_text)
     st.session_state.sample_data_notice = False
+    st.session_state.sample_data_message = ""
 
 if (
     st.session_state.data_year is None
     or st.session_state.data_monthly is None
 ):
     st.info(
-        "左メニューの「データ取込」からCSVまたはExcelファイルをアップロードしてください。\n\n"
-        "時間がない場合は下のサンプルデータを使ってすぐに操作感を確認できます。"
+        "左メニューの「データ取込」からCSVまたはExcelファイルをアップロードしてください。"
+        "サンプルテンプレートを活用すると、初期セットアップを数分で体験できます。"
     )
-    st.caption(
-        "フェルミ推定ではサンプル体験により1時間以上かかる初期設定を15分程度に短縮できます。"
-    )
-    if st.button(
-        "サンプルデータを表示する",
-        type="primary",
-        help="サンプルの年計データを読み込み、すべてのダッシュボード機能を体験できます。",
-    ):
-        sample_df = load_sample_dataset()
-        settings = st.session_state.settings
-        long_df = fill_missing_months(
-            sample_df, policy=settings.get("missing_policy", "zero_fill")
+    with st.expander("アップロード前のチェックリスト", expanded=False):
+        st.markdown(
+            "1. 行は商品（または費目）、列に12ヶ月以上の月度が並ぶワイド形式か確認する。\n"
+            "2. 月度の列名は `2023-01` や `2023/01/01` など日付として解釈できる形式にする。\n"
+            "3. 数値は円単位で入力し、欠損がある場合は空欄または0で埋める。"
         )
-        year_df = compute_year_rolling(
-            long_df,
-            window=int(settings.get("window", 12)),
-            policy=settings.get("missing_policy", "zero_fill"),
-        )
-        year_df = compute_slopes(
-            year_df,
-            last_n=int(settings.get("last_n", 12)),
-        )
-        st.session_state.data_monthly = long_df
-        st.session_state.data_year = year_df
-        st.session_state.sample_data_notice = True
-        st.rerun()
+    render_getting_started_intro()
+    render_sample_data_hub()
 
 # ---------------- Pages ----------------
 
@@ -2532,10 +2685,18 @@ if page == "データ取込":
         "**Excel(.xlsx) / CSV をアップロードしてください。** "
         "列に `YYYY-MM`（または日付系）形式の月度が含まれている必要があります。"
     )
+    with st.expander("CSVの列構成を確認する", expanded=False):
+        st.markdown(
+            "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように商品名と任意のコード列の後に月次列を並べてください。"
+        )
 
     col_u1, col_u2 = st.columns([2, 1])
     with col_u1:
-        file = st.file_uploader("ファイル選択", type=["xlsx", "csv"])
+        file = st.file_uploader(
+            "ファイル選択",
+            type=["xlsx", "csv"],
+            help="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。",
+        )
     with col_u2:
         st.session_state.settings["missing_policy"] = st.selectbox(
             "欠測月ポリシー",
@@ -2544,6 +2705,7 @@ if page == "データ取込":
                 "ゼロ補完(推奨)" if x == "zero_fill" else "欠測含む窓は非計上"
             ),
             index=0,
+            help="欠測月がある場合の扱いを選択します。ゼロ補完は欠測を0として計算します。",
         )
 
     if file is not None:
@@ -2557,39 +2719,36 @@ if page == "データ取込":
             st.error(f"読込エラー: {e}")
             st.stop()
 
-        st.caption("アップロードプレビュー（先頭100行）")
-        st.dataframe(df_raw.head(100), use_container_width=True)
+        with st.expander("アップロードプレビュー（先頭100行）", expanded=True):
+            st.dataframe(df_raw.head(100), use_container_width=True)
 
         cols = df_raw.columns.tolist()
-        product_name_col = st.selectbox("商品名列の選択", options=cols, index=0)
+        product_name_col = st.selectbox(
+            "商品名列の選択",
+            options=cols,
+            index=0,
+            help="可視化に使用する名称列を選択します。仕入データや経費データでも名称列を指定してください。",
+        )
         product_code_col = st.selectbox(
-            "商品コード列の選択（任意）", options=["<なし>"] + cols, index=0
+            "商品コード列の選択（任意）",
+            options=["<なし>"] + cols,
+            index=0,
+            help="SKUコードなど識別子の列がある場合は選択します。ない場合は〈なし〉のままで問題ありません。",
         )
         code_col = None if product_code_col == "<なし>" else product_code_col
 
-        if st.button("変換＆取込", type="primary"):
+        if st.button(
+            "変換＆取込",
+            type="primary",
+            help="年計・YoY・Δを自動計算し、ダッシュボード各ページで利用できる形式に整えます。",
+        ):
             try:
                 with st.spinner("年計データを計算中…"):
-                    long_df = parse_uploaded_table(
+                    long_df, year_df = ingest_wide_dataframe(
                         df_raw,
                         product_name_col=product_name_col,
                         product_code_col=code_col,
                     )
-                    long_df = fill_missing_months(
-                        long_df, policy=st.session_state.settings["missing_policy"]
-                    )
-                    # Compute year rolling & slopes
-                    year_df = compute_year_rolling(
-                        long_df,
-                        window=st.session_state.settings["window"],
-                        policy=st.session_state.settings["missing_policy"],
-                    )
-                    year_df = compute_slopes(
-                        year_df, last_n=st.session_state.settings["last_n"]
-                    )
-
-                    st.session_state.data_monthly = long_df
-                    st.session_state.data_year = year_df
 
                 st.success(
                     "取込完了。ダッシュボードへ移動して可視化を確認してください。"
@@ -2614,6 +2773,7 @@ if page == "データ取込":
                     ),
                     file_name="year_rolling.csv",
                     mime="text/csv",
+                    help="年計やYoYなどの計算結果をCSVで保存し、他システムと共有できます。",
                 )
             except Exception as e:
                 st.exception(e)
