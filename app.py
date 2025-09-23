@@ -30,14 +30,17 @@ from core.i18n import (
     t,
 )
 
-# McKinsey inspired pastel palette
+# McKinsey inspired navy & cobalt palette with two primary accents
+MCKINSEY_NAVY = "#0b1f3a"
+MCKINSEY_COBALT = "#1f6feb"
+MCKINSEY_SKY = "#58a6ff"
 MCKINSEY_PALETTE = [
-    "#123a5f",  # deep navy
-    "#2d6f8e",  # steel blue
-    "#4f9ab8",  # aqua accent
-    "#71b7d4",  # sky blue
-    "#a9d0e7",  # frost blue
-    "#dbe8f5",  # airy pastel
+    MCKINSEY_NAVY,
+    MCKINSEY_COBALT,
+    MCKINSEY_NAVY,
+    MCKINSEY_SKY,
+    MCKINSEY_COBALT,
+    MCKINSEY_NAVY,
 ]
 # Apply palette across figures
 px.defaults.color_discrete_sequence = MCKINSEY_PALETTE
@@ -139,77 +142,117 @@ from core.correlation import (
 )
 from core.product_clusters import render_correlation_category_module
 
-# McKinsey inspired light theme
+# McKinsey inspired light theme baseline
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
 :root{
-  --bg:#f3f6fb;
+  --font-heading:'Georgia','Times New Roman','Hiragino Mincho ProN','Yu Mincho',serif;
+  --font-base:'Arial','Noto Sans JP','Hiragino Kaku Gothic ProN','Meiryo',sans-serif;
+  --bg:#ffffff;
+  --bg-muted:#f4f7fb;
   --panel:#ffffff;
-  --text:#0b1726;
-  --accent:#0f4c81;
-  --accent-strong:#0a2e5c;
-  --accent-soft:#3a7ebf;
-  --muted:#4b5c6c;
-  --border:#c6d4e6;
-  --font-base:'Noto Sans JP','Hiragino Kaku Gothic ProN','Meiryo',sans-serif;
+  --panel-alt:#f6f8fc;
+  --ink:#0b1f3a;
+  --ink-subtle:#40526d;
+  --accent:#1f6feb;
+  --accent-strong:#0b2f4c;
+  --accent-soft:#58a6ff;
+  --muted:#5a6880;
+  --border:#d4deee;
+  --border-strong:#b7c5da;
+  --metric-positive:#1f6feb;
+  --metric-negative:#b24646;
 }
 body, .stApp, [data-testid="stAppViewContainer"]{
   background:var(--bg) !important;
-  color:var(--text) !important;
+  color:var(--ink) !important;
   font-family:var(--font-base);
-  font-size:16px;
+  font-size:1rem;
+  line-height:1.65;
+}
+[data-testid="stAppViewContainer"] > .main{
+  padding-top:0;
+}
+[data-testid="stHeader"]{
+  background:linear-gradient(90deg,#0b1f3a 0%,#10325a 100%);
+  border-bottom:1px solid rgba(8,21,43,0.45);
+}
+[data-testid="stHeader"] *{
+  color:#f5f9ff !important;
 }
 [data-testid="stSidebar"]{
-  background:linear-gradient(180deg,#0b2f4c 0%,#0f3b68 100%);
-  color:#f6fbff;
-  padding-top:1rem;
-  font-family:var(--font-base);
+  background:linear-gradient(180deg,#08142a 0%,#0b1f3a 100%);
+  color:#f0f6ff;
+  padding:1.6rem 1.2rem;
 }
 [data-testid="stSidebar"] *{
-  color:#f6fbff !important;
+  color:#f0f6ff !important;
   font-family:var(--font-base);
 }
 [data-testid="stSidebar"] .stButton>button{
   background:rgba(255,255,255,0.16);
-  border:1px solid rgba(255,255,255,0.36);
+  border:1px solid rgba(255,255,255,0.38);
   color:#ffffff;
   box-shadow:none;
+  font-weight:600;
 }
-h1,h2,h3{
-  color:var(--accent-strong);
-  font-weight:800;
-  letter-spacing:.4px;
+[data-testid="stSidebar"] .stButton>button:hover{
+  background:rgba(255,255,255,0.24);
+}
+h1,h2,h3,h4{
+  color:var(--ink);
+  font-family:var(--font-heading);
+  font-weight:600;
+  letter-spacing:0.2px;
+  margin-bottom:0.45rem;
+}
+h1{ font-size:1.4rem; }
+h2{ font-size:1.25rem; }
+h3{ font-size:1.12rem; }
+h4{ font-size:1.0rem; }
+p,li,span,div{
+  color:var(--ink);
   font-family:var(--font-base);
+  font-size:1rem;
+  line-height:1.68;
 }
-h1{ font-size:2.25rem; }
-h2{ font-size:1.6rem; }
-h3{ font-size:1.28rem; }
-p,li,span{
-  color:var(--text);
-  font-size:1.02rem;
-  line-height:1.7;
-  font-family:var(--font-base);
+small, .text-small{
+  font-size:0.82rem;
+  color:var(--muted);
 }
-small, .text-small{ font-size:0.88rem; }
+.block-container{
+  padding:1.8rem 2.6rem 2.6rem;
+  max-width:1380px;
+}
+.element-container{
+  margin-bottom:1.4rem;
+}
+[data-testid="stHorizontalBlock"]{
+  gap:1.4rem !important;
+}
 [data-testid="stMetric"]{
   background:var(--panel);
   border:1px solid var(--border);
-  border-radius:12px;
-  padding:0.75rem 0.9rem;
-  box-shadow:0 6px 18px rgba(15,60,105,0.12);
+  border-radius:14px;
+  padding:0.85rem 1rem;
+  box-shadow:0 12px 28px rgba(11,31,58,0.08);
 }
 [data-testid="stMetricValue"]{
   color:var(--accent-strong);
+  font-family:var(--font-heading);
+  font-weight:600;
   font-variant-numeric:tabular-nums;
-  font-weight:700;
+}
+[data-testid="stMetricDelta"]{
+  font-weight:600;
 }
 [data-testid="stMetricLabel"]{
   color:var(--muted);
   font-weight:600;
+  letter-spacing:0.08em;
   text-transform:uppercase;
-  letter-spacing:.08em;
 }
 .mck-sidebar-summary{
   background:rgba(255,255,255,0.12);
@@ -222,12 +265,12 @@ small, .text-small{ font-size:0.88rem; }
 }
 .mck-sidebar-summary strong{ color:#ffffff; }
 .mck-hero{
-  background:linear-gradient(135deg, rgba(15,60,105,0.95) 0%, rgba(47,111,142,0.86) 100%);
+  background:linear-gradient(135deg, rgba(11,31,58,0.96) 0%, rgba(31,111,235,0.88) 100%);
   color:#ffffff;
   padding:1.8rem 2rem;
-  border-radius:18px;
+  border-radius:20px;
   margin-bottom:1.2rem;
-  box-shadow:0 18px 38px rgba(11,44,74,0.28);
+  box-shadow:0 24px 40px rgba(11,31,58,0.32);
   position:relative;
   overflow:hidden;
   font-family:var(--font-base);
@@ -238,13 +281,14 @@ small, .text-small{ font-size:0.88rem; }
   inset:auto -18% -32% auto;
   width:220px;
   height:220px;
-  background:rgba(255,255,255,0.16);
+  background:rgba(255,255,255,0.18);
   border-radius:50%;
 }
 .mck-hero h1{
   color:#ffffff;
   margin-bottom:0.5rem;
-  font-size:2rem;
+  font-size:1.65rem;
+  font-family:var(--font-heading);
 }
 .mck-hero p{
   color:rgba(235,242,250,0.88);
@@ -271,14 +315,15 @@ small, .text-small{ font-size:0.88rem; }
 }
 .mck-section-header h2{
   margin:0;
-  font-size:1.4rem;
+  font-size:1.35rem;
   line-height:1.2;
   color:var(--accent-strong);
+  font-family:var(--font-heading);
 }
 .mck-section-subtitle{
   margin:0.25rem 0 0;
   font-size:0.96rem;
-  color:var(--muted);
+  color:var(--ink-subtle);
 }
 .mck-section-icon{
   width:42px;
@@ -287,7 +332,7 @@ small, .text-small{ font-size:0.88rem; }
   align-items:center;
   justify-content:center;
   border-radius:50%;
-  background:rgba(15,60,105,0.12);
+  background:rgba(31,111,235,0.12);
   color:var(--accent-strong);
   font-size:1.2rem;
   flex-shrink:0;
@@ -298,7 +343,7 @@ small, .text-small{ font-size:0.88rem; }
   border-radius:12px;
   border:1px solid var(--border);
   padding:0.75rem 0.9rem;
-  box-shadow:0 12px 26px rgba(11,44,74,0.12);
+  box-shadow:0 12px 26px rgba(11,31,58,0.12);
   margin-top:0.75rem;
 }
 .mck-ai-answer strong{ color:var(--accent-strong); }
@@ -312,7 +357,7 @@ small, .text-small{ font-size:0.88rem; }
   font-weight:600;
 }
 .stTabs [data-baseweb="tab"]:hover{ border-color:var(--accent); color:var(--accent-strong); }
-.stTabs [data-baseweb="tab"]:focus{ outline:none; box-shadow:0 0 0 3px rgba(15,76,129,0.2); }
+.stTabs [data-baseweb="tab"]:focus{ outline:none; box-shadow:0 0 0 3px rgba(31,111,235,0.18); }
 .stTabs [aria-selected="true"]{ background:var(--accent); color:#ffffff; border-color:var(--accent); }
 .stDataFrame{ border-radius:14px !important; }
 .stButton>button{
@@ -322,36 +367,36 @@ small, .text-small{ font-size:0.88rem; }
   border:1px solid var(--accent-strong);
   color:#ffffff;
   background:var(--accent);
-  box-shadow:0 10px 24px rgba(15,76,129,0.28);
+  box-shadow:0 12px 26px rgba(15,76,129,0.28);
   transition:background .2s ease, box-shadow .2s ease;
 }
 .stButton>button:hover{
   background:var(--accent-strong);
   border-color:var(--accent-strong);
   color:#ffffff;
-  box-shadow:0 12px 28px rgba(10,46,92,0.32);
+  box-shadow:0 14px 30px rgba(11,46,92,0.32);
 }
 .tour-banner{
   background:var(--panel);
   border:1px solid var(--border);
-  border-radius:18px;
-  padding:1.1rem 1.4rem;
+  border-radius:20px;
+  padding:1.2rem 1.5rem;
   margin:0 0 1.2rem;
   position:relative;
   overflow:hidden;
-  box-shadow:0 18px 38px rgba(11,44,74,0.16);
+  box-shadow:0 20px 44px rgba(11,31,58,0.18);
 }
 .tour-banner::before{
   content:"";
   position:absolute;
   inset:0;
-  background:linear-gradient(135deg, rgba(15,60,105,0.12), rgba(71,183,212,0.12));
+  background:linear-gradient(135deg, rgba(31,111,235,0.12), rgba(88,166,255,0.12));
   opacity:0.25;
   pointer-events:none;
 }
 .tour-banner > div{ position:relative; z-index:1; }
 .tour-banner--muted{
-  background:linear-gradient(135deg, rgba(15,60,105,0.05), rgba(15,60,105,0.02));
+  background:linear-gradient(135deg, rgba(11,31,58,0.05), rgba(11,31,58,0.02));
   border-style:dashed;
   box-shadow:none;
 }
@@ -365,19 +410,20 @@ small, .text-small{ font-size:0.88rem; }
 }
 .tour-banner__title{
   font-size:1.42rem;
-  font-weight:800;
+  font-weight:700;
   color:var(--accent-strong);
   margin-bottom:.35rem;
+  font-family:var(--font-heading);
 }
 .tour-banner__desc{
   margin-bottom:.25rem;
-  color:var(--muted);
+  color:var(--ink-subtle);
   font-size:.96rem;
 }
 .tour-banner__details{
   margin:0;
   font-size:.94rem;
-  color:var(--text);
+  color:var(--ink);
 }
 .tour-banner__section{
   display:inline-flex;
@@ -385,7 +431,7 @@ small, .text-small{ font-size:0.88rem; }
   gap:0.45rem;
   padding:0.25rem 0.8rem;
   border-radius:999px;
-  background:rgba(15,76,129,0.14);
+  background:rgba(31,111,235,0.16);
   color:var(--accent-strong);
   font-weight:700;
   font-size:.82rem;
@@ -416,7 +462,7 @@ small, .text-small{ font-size:0.88rem; }
   position:relative;
   height:8px;
   border-radius:999px;
-  background:rgba(15,76,129,0.18);
+  background:rgba(31,111,235,0.18);
   overflow:hidden;
 }
 .tour-progress__bar{
@@ -438,7 +484,7 @@ small, .text-small{ font-size:0.88rem; }
   width:100%;
   border-radius:12px;
   font-weight:700;
-  box-shadow:0 12px 24px rgba(15,76,129,0.22);
+  box-shadow:0 12px 24px rgba(31,111,235,0.22);
 }
 .tour-banner__nav [data-testid="column"] [data-testid="stButton"]>button:disabled{
   opacity:.55;
@@ -453,7 +499,7 @@ small, .text-small{ font-size:0.88rem; }
   box-shadow:none;
 }
 .tour-banner__nav [data-testid="column"]:first-child [data-testid="stButton"]>button:hover{
-  background:rgba(15,76,129,0.08);
+  background:rgba(31,111,235,0.08);
 }
 .tour-banner__nav [data-testid="column"]:last-child [data-testid="stButton"]>button{
   border-color:#b24646;
@@ -471,7 +517,7 @@ small, .text-small{ font-size:0.88rem; }
   background:var(--accent);
   color:#ffffff;
   border-color:var(--accent);
-  box-shadow:0 12px 24px rgba(15,76,129,0.22);
+  box-shadow:0 12px 24px rgba(31,111,235,0.22);
 }
 .tour-banner__nav--resume [data-testid="column"]:first-child [data-testid="stButton"]>button:hover{
   background:var(--accent-strong);
@@ -485,27 +531,25 @@ small, .text-small{ font-size:0.88rem; }
   box-shadow:none;
 }
 .tour-banner__nav--resume [data-testid="column"]:last-child [data-testid="stButton"]>button:hover{
-  background:rgba(15,76,129,0.08);
+  background:rgba(31,111,235,0.08);
   border-color:var(--accent-strong);
   color:var(--accent-strong);
 }
 .tour-highlight-heading{
   position:relative;
   border-radius:18px;
-  outline:3px solid rgba(15,76,129,0.45);
-  box-shadow:0 18px 36px rgba(15,76,129,0.22);
-  background:linear-gradient(135deg, rgba(15,60,105,0.08), rgba(169,208,231,0.18));
+  outline:3px solid rgba(31,111,235,0.45);
+  box-shadow:0 18px 36px rgba(31,111,235,0.22);
+  background:linear-gradient(135deg, rgba(11,31,58,0.08), rgba(88,166,255,0.18));
   transition:box-shadow .3s ease;
 }
-.tour-highlight-heading h2{
-  color:var(--accent-strong) !important;
-}
+.tour-highlight-heading h2{ color:var(--accent-strong) !important; font-family:var(--font-heading); }
 .tour-highlight-heading::after{
   content:"";
   position:absolute;
   inset:8px;
   border-radius:14px;
-  border:1px solid rgba(15,76,129,0.28);
+  border:1px solid rgba(31,111,235,0.28);
   pointer-events:none;
 }
 section[data-testid="stSidebar"] label.tour-highlight-nav{
@@ -517,37 +561,29 @@ section[data-testid="stSidebar"] label.tour-highlight-nav{
 section[data-testid="stSidebar"] label.tour-highlight-nav *{
   color:#ffffff !important;
 }
-.tour-banner--muted .tour-banner__progress{
-  color:var(--muted);
-}
+.tour-banner--muted .tour-banner__progress{ color:var(--muted); }
 .tour-banner--muted .tour-banner__section{
-  background:rgba(15,76,129,0.08);
+  background:rgba(31,111,235,0.08);
   color:var(--muted);
 }
-.tour-banner--muted .tour-banner__section span{
-  color:var(--muted);
-}
-.tour-banner--muted .tour-progress__meta{
-  color:var(--muted);
-}
+.tour-banner--muted .tour-banner__section span{ color:var(--muted); }
+.tour-banner--muted .tour-progress__meta{ color:var(--muted); }
 .tour-banner--muted .tour-progress__track{
-  background:rgba(15,76,129,0.1);
+  background:rgba(31,111,235,0.1);
 }
 .tour-banner--muted .tour-progress__bar{
-  background:rgba(15,76,129,0.22);
+  background:rgba(31,111,235,0.22);
 }
-.tour-banner--muted .tour-banner__desc{
-  color:var(--muted);
-}
+.tour-banner--muted .tour-banner__desc{ color:var(--muted); }
 .chart-card{
   background:var(--panel);
   border:1px solid var(--border);
-  border-radius:14px;
-  box-shadow:0 12px 26px rgba(11,44,74,0.08);
+  border-radius:16px;
+  box-shadow:0 16px 32px rgba(11,31,58,0.08);
 }
 .chart-toolbar{
-  background:linear-gradient(180deg, rgba(15,60,105,0.05), rgba(15,60,105,0.02));
-  border-bottom:1px solid rgba(15,60,105,0.18);
+  background:linear-gradient(180deg, rgba(11,31,58,0.05), rgba(11,31,58,0.02));
+  border-bottom:1px solid rgba(11,31,58,0.18);
 }
 </style>
     """,
@@ -557,17 +593,35 @@ section[data-testid="stSidebar"] label.tour-highlight-nav *{
 # ===== Elegant（品格）UI ON/OFF & Language Selector =====
 if "elegant_on" not in st.session_state:
     st.session_state["elegant_on"] = True
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = False
+if "ui_theme" not in st.session_state:
+    st.session_state["ui_theme"] = "light"
 
 with st.container():
     control_left, control_right = st.columns([3, 1])
     with control_left:
-        elegant_on = st.toggle(
-            t("header.elegant_toggle.label"),
-            value=st.session_state.get("elegant_on", True),
-            help=t("header.elegant_toggle.help"),
-            key="elegant_ui_toggle",
-        )
-        st.session_state["elegant_on"] = elegant_on
+        toggle_cols = st.columns(2)
+        with toggle_cols[0]:
+            elegant_on = st.toggle(
+                t("header.elegant_toggle.label"),
+                value=st.session_state.get("elegant_on", True),
+                help=t("header.elegant_toggle.help"),
+                key="elegant_ui_toggle",
+            )
+            st.session_state["elegant_on"] = elegant_on
+        with toggle_cols[1]:
+            dark_mode = st.toggle(
+                t("header.dark_mode.label", default="ダークモード"),
+                value=st.session_state.get("dark_mode", False),
+                help=t(
+                    "header.dark_mode.help",
+                    default="長時間の閲覧向けに暗色テーマへ切り替えます",
+                ),
+                key="mck_dark_mode_toggle",
+            )
+            st.session_state["dark_mode"] = dark_mode
+            st.session_state["ui_theme"] = "dark" if dark_mode else "light"
     with control_right:
         language_codes = get_available_languages()
         if language_codes:
@@ -584,41 +638,112 @@ with st.container():
         )
 
 elegant_on = st.session_state.get("elegant_on", True)
+dark_mode = st.session_state.get("dark_mode", False)
 
 # ===== 品格UI CSS（配色/余白/フォント/境界の見直し） =====
 if elegant_on:
-    st.markdown(
-        """
-        <style>
-          :root{
-            --ink:#0e1f33;
-            --bg:#f4f7fb;
-            --panel:#ffffff;
-            --line:rgba(15,60,105,.16);
-            --accent:#0f4c81;
-            --accent-strong:#0a2e5c;
-            --muted:#4d5e72;
-          }
-          body, .stApp, [data-testid="stAppViewContainer"]{ background:var(--bg) !important; color:var(--ink) !important; }
-          h1,h2,h3{ letter-spacing:.3px; font-weight:800; color:var(--accent-strong); }
-          p,li,div,span{ font-variant-numeric: tabular-nums; color:var(--ink); }
-          .chart-card, .stTabs, .stDataFrame, .element-container{
-            border-radius:16px; box-shadow:0 16px 32px rgba(15,60,105,.12);
-            border:1px solid var(--line); background:var(--panel);
-          }
-          .chart-toolbar{
-            background:linear-gradient(180deg, rgba(15,60,105,.08), rgba(15,60,105,.02));
-            border-bottom:1px solid rgba(15,60,105,.24);
-          }
-          .stRadio label, .stCheckbox label, .stSelectbox label{ border-radius:999px; font-weight:600; color:var(--accent-strong); }
-          .stButton>button{ border:1px solid var(--accent-strong); background:var(--accent); color:#ffffff; box-shadow:0 10px 24px rgba(15,76,129,0.28); }
-          .stButton>button:hover{ background:var(--accent-strong); border-color:var(--accent-strong); color:#ffffff; }
-          [data-testid="stSidebar"]{ background:linear-gradient(180deg,#0b2f4c 0%,#123a5f 100%); color:#fff; }
-          [data-testid="stSidebar"] *{ color:#fff !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    if dark_mode:
+        st.markdown(
+            """
+            <style>
+              :root{
+                --ink:#e6efff;
+                --ink-subtle:#a9bddc;
+                --bg:#08121f;
+                --bg-muted:#0d1c30;
+                --panel:#0f2138;
+                --panel-alt:#162d4a;
+                --border:#1f3a5d;
+                --border-strong:#2f4c74;
+                --accent:#1f6feb;
+                --accent-strong:#58a6ff;
+                --accent-soft:#8fc2ff;
+                --muted:#9cb1d1;
+                --metric-positive:#58a6ff;
+                --metric-negative:#f18c8c;
+              }
+              body, .stApp, [data-testid="stAppViewContainer"]{ background:var(--bg) !important; color:var(--ink) !important; }
+              [data-testid="stHeader"]{
+                background:linear-gradient(90deg,#050a14 0%,#0d2136 100%);
+                border-bottom:1px solid rgba(143,181,221,0.28);
+              }
+              [data-testid="stHeader"] *{ color:#e6efff !important; }
+              [data-testid="stSidebar"]{
+                background:linear-gradient(180deg,#050b16 0%,#0d2239 100%);
+                color:#e6efff;
+              }
+              [data-testid="stSidebar"] *{ color:#e6efff !important; }
+              .chart-card, .stDataFrame{
+                box-shadow:0 18px 38px rgba(5,12,24,0.55) !important;
+                border:1px solid var(--border) !important;
+                background:var(--panel) !important;
+              }
+              [data-testid="stMetric"]{
+                background:var(--panel-alt);
+                box-shadow:0 18px 40px rgba(5,12,24,0.5);
+                border:1px solid var(--border);
+              }
+              .stTabs [data-baseweb="tab"]{
+                background:var(--panel-alt);
+                border-color:var(--border);
+                color:var(--ink-subtle);
+              }
+              .stTabs [aria-selected="true"]{
+                background:var(--accent);
+                color:#041020;
+                border-color:var(--accent);
+              }
+              .stButton>button{
+                border:1px solid var(--accent-strong);
+                background:var(--accent);
+                color:#041020;
+                box-shadow:0 16px 32px rgba(8,25,46,0.46);
+              }
+              .stButton>button:hover{
+                background:var(--accent-strong);
+                border-color:var(--accent-strong);
+                color:#041020;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <style>
+              :root{
+                --ink:#0b1f3a;
+                --ink-subtle:#40526d;
+                --bg:#ffffff;
+                --bg-muted:#f4f7fb;
+                --panel:#ffffff;
+                --panel-alt:#f6f8fc;
+                --border:#d4deee;
+                --border-strong:#b7c5da;
+                --accent:#1f6feb;
+                --accent-strong:#0b2f4c;
+                --accent-soft:#58a6ff;
+                --muted:#5a6880;
+                --metric-positive:#1f6feb;
+                --metric-negative:#b24646;
+              }
+              body, .stApp, [data-testid="stAppViewContainer"]{ background:var(--bg) !important; color:var(--ink) !important; }
+              [data-testid="stHeader"]{
+                background:linear-gradient(90deg,#0b1f3a 0%,#10325a 100%);
+                border-bottom:1px solid rgba(8,21,43,0.45);
+              }
+              [data-testid="stSidebar"]{
+                background:linear-gradient(180deg,#08142a 0%,#0b1f3a 100%);
+              }
+              .chart-card, .stDataFrame{
+                border:1px solid var(--border) !important;
+                box-shadow:0 16px 32px rgba(11,31,58,0.12) !important;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
 INDUSTRY_TEMPLATES: Dict[str, Dict[str, object]] = {
     "restaurant": {
@@ -4191,7 +4316,7 @@ elif page == "ダッシュボード":
                 )
                 fig.update_traces(textposition="outside")
                 fig = apply_elegant_theme(
-                    fig, theme=st.session_state.get("ui_theme", "dark")
+                    fig, theme=st.session_state.get("ui_theme", "light")
                 )
                 render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
 
@@ -4276,7 +4401,7 @@ elif page == "ダッシュボード":
         )
         fig.update_yaxes(title=f"年計({unit})", tickformat="~,d")
         fig.update_layout(height=525, margin=dict(l=10, r=10, t=50, b=10))
-        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "dark"))
+        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
         render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
         st.caption("凡例クリックで系列の表示切替、ダブルクリックで単独表示。")
 
@@ -4343,7 +4468,7 @@ elif page == "ランキング":
 
     fig_bar = px.bar(snap.head(20), x="product_name", y=metric)
     fig_bar = apply_elegant_theme(
-        fig_bar, theme=st.session_state.get("ui_theme", "dark")
+        fig_bar, theme=st.session_state.get("ui_theme", "light")
     )
     render_plotly_with_spinner(fig_bar, config=PLOTLY_CONFIG)
 
@@ -4403,20 +4528,21 @@ elif page == "比較ビュー":
 
     st.markdown(
         """
-<style>
-.chart-card { position: relative; margin:.25rem 0 1rem; border-radius:12px;
-  border:1px solid var(--color-primary); background:var(--card-bg,#fff); }
-.chart-toolbar { position: sticky; top: -1px; z-index: 5;
-  display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
-  padding:.35rem .6rem; background: linear-gradient(180deg, rgba(0,58,112,.08), rgba(0,58,112,.02));
-  border-bottom:1px solid var(--color-primary); }
-/* Streamlit標準の下マージンを除去（ここが距離の主因） */
-.chart-toolbar .stRadio, .chart-toolbar .stSelectbox, .chart-toolbar .stSlider,
-.chart-toolbar .stMultiSelect, .chart-toolbar .stCheckbox { margin-bottom:0 !important; }
-.chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:#003a70; }
-.chart-toolbar .stSlider label { color:#003a70; }
-.chart-body { padding:.15rem .4rem .4rem; }
-</style>
+  <style>
+  .chart-card { position: relative; margin:.35rem 0 1.2rem; border-radius:16px;
+    border:1px solid var(--border, rgba(11,31,58,0.18)); background:var(--panel,#ffffff);
+    box-shadow:0 16px 32px rgba(11,31,58,0.08); }
+  .chart-toolbar { position: sticky; top:-1px; z-index:5;
+    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+    padding:.45rem .75rem; background: linear-gradient(180deg, rgba(31,111,235,0.08), rgba(31,111,235,0.02));
+    border-bottom:1px solid var(--border, rgba(11,31,58,0.18)); }
+  /* Streamlit標準の下マージンを除去（ここが距離の主因） */
+  .chart-toolbar .stRadio, .chart-toolbar .stSelectbox, .chart-toolbar .stSlider,
+  .chart-toolbar .stMultiSelect, .chart-toolbar .stCheckbox { margin-bottom:0 !important; }
+  .chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:var(--ink,#0b1f3a); font-weight:600; }
+  .chart-toolbar .stSlider label { color:var(--ink,#0b1f3a); }
+  .chart-body { padding:.15rem .4rem .4rem; }
+  </style>
         """,
         unsafe_allow_html=True,
     )
@@ -4815,7 +4941,7 @@ zスコア：全SKUの傾き分布に対する標準化。|z|≥1.5で急勾配�
 
     with st.expander("分布（オプション）", expanded=False):
         hist_fig = apply_elegant_theme(
-            hist_fig, theme=st.session_state.get("ui_theme", "dark")
+            hist_fig, theme=st.session_state.get("ui_theme", "light")
         )
         render_plotly_with_spinner(hist_fig, config=PLOTLY_CONFIG)
 
@@ -4887,7 +5013,7 @@ zスコア：全SKUの傾き分布に対する標準化。|z|≥1.5で急勾配�
                 disp, f"{last_val:,.0f} {unit}" if not np.isnan(last_val) else "—"
             )
             fig_s = apply_elegant_theme(
-                fig_s, theme=st.session_state.get("ui_theme", "dark")
+                fig_s, theme=st.session_state.get("ui_theme", "light")
             )
             fig_s.update_layout(height=225)
             render_plotly_with_spinner(fig_s, config=PLOTLY_CONFIG)
@@ -5243,7 +5369,7 @@ elif page == "異常検知":
                     f" 異常スコアは {tgt['score']:.2f} です。"
                 )
             fig_anom = apply_elegant_theme(
-                fig_anom, theme=st.session_state.get("ui_theme", "dark")
+                fig_anom, theme=st.session_state.get("ui_theme", "light")
             )
             render_plotly_with_spinner(fig_anom, config=PLOTLY_CONFIG)
 
@@ -5329,7 +5455,7 @@ elif page == "相関分析":
                 corr, color_continuous_scale="RdBu_r", zmin=-1, zmax=1, text_auto=True
             )
             fig_corr = apply_elegant_theme(
-                fig_corr, theme=st.session_state.get("ui_theme", "dark")
+                fig_corr, theme=st.session_state.get("ui_theme", "light")
             )
             render_plotly_with_spinner(fig_corr, config=PLOTLY_CONFIG)
 
@@ -5377,7 +5503,7 @@ elif page == "相関分析":
                         arrowhead=1,
                     )
                 fig_sc = apply_elegant_theme(
-                    fig_sc, theme=st.session_state.get("ui_theme", "dark")
+                    fig_sc, theme=st.session_state.get("ui_theme", "light")
                 )
                 render_plotly_with_spinner(fig_sc, config=PLOTLY_CONFIG)
                 st.caption("rは -1〜+1。0は関連が薄い。CIに0を含まなければ有意。")
@@ -5543,7 +5669,7 @@ elif page == "相関分析":
                                         text_auto=True,
                                     )
                                     fig_corr = apply_elegant_theme(
-                                        fig_corr, theme=st.session_state.get("ui_theme", "dark")
+                                        fig_corr, theme=st.session_state.get("ui_theme", "light")
                                     )
                                     render_plotly_with_spinner(
                                         fig_corr, config=PLOTLY_CONFIG
@@ -5629,7 +5755,7 @@ elif page == "相関分析":
                                             )
                                         fig_sc = apply_elegant_theme(
                                             fig_sc,
-                                            theme=st.session_state.get("ui_theme", "dark"),
+                                            theme=st.session_state.get("ui_theme", "light"),
                                         )
                                         render_plotly_with_spinner(
                                             fig_sc, config=PLOTLY_CONFIG

@@ -678,7 +678,7 @@ def render_correlation_category_module(
         aspect="auto",
     )
     heat_fig.update_layout(height=500)
-    heat_fig = apply_elegant_theme(heat_fig, theme=st.session_state.get("ui_theme", "dark"))
+    heat_fig = apply_elegant_theme(heat_fig, theme=st.session_state.get("ui_theme", "light"))
     render_plotly_with_spinner(heat_fig, config=plot_config or {})
 
     st.subheader("ネットワークグラフ")
@@ -771,7 +771,7 @@ def render_correlation_category_module(
         yaxis=dict(visible=False),
         height=620,
     )
-    net_fig = apply_elegant_theme(net_fig, theme=st.session_state.get("ui_theme", "dark"))
+    net_fig = apply_elegant_theme(net_fig, theme=st.session_state.get("ui_theme", "light"))
     render_plotly_with_spinner(net_fig, config=plot_config or {})
 
     st.subheader("クラスタ一覧")
@@ -826,7 +826,7 @@ def render_correlation_category_module(
             color_continuous_scale="Blues",
         )
         bar_fig.update_layout(height=420, xaxis_title="クラスタ", yaxis_title="商品数")
-        bar_fig = apply_elegant_theme(bar_fig, theme=st.session_state.get("ui_theme", "dark"))
+        bar_fig = apply_elegant_theme(bar_fig, theme=st.session_state.get("ui_theme", "light"))
         render_plotly_with_spinner(bar_fig, config=plot_config or {})
     else:
         st.info("最小サイズ条件を満たすクラスタがありません。閾値や最小サイズを見直してください。")
