@@ -2086,6 +2086,7 @@ st.markdown(
       min-width:120px;
       position:relative;
       transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      cursor:pointer;
     }
     .tour-step-guide__item:hover{
       transform:translateY(-3px);
@@ -2601,6 +2602,53 @@ def render_step_guide(active_nav_key: str) -> None:
         f'<div class="tour-step-guide" role="list" aria-label="主要ナビゲーションステップ">'
         f'{"".join(items_html)}</div>',
         unsafe_allow_html=True,
+    )
+
+    components.html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+            const findSidebarInput = (navKey) => {
+                if (!navKey) return null;
+                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) return null;
+                const label = sidebar.querySelector('label[data-nav-key="' + navKey + '"]');
+                if (!label) return null;
+                return label.querySelector('input[type="radio"]');
+            };
+            const bind = (attempt = 0) => {
+                const items = Array.from(doc.querySelectorAll('.tour-step-guide__item[data-step]'));
+                if (!items.length) {
+                    if (attempt < 10) {
+                        setTimeout(() => bind(attempt + 1), 120);
+                    }
+                    return;
+                }
+                items.forEach((item) => {
+                    if (item.dataset.navBound === '1') return;
+                    item.dataset.navBound = '1';
+                    const activate = () => {
+                        const navKey = item.dataset.step;
+                        const input = findSidebarInput(navKey);
+                        if (input) {
+                            input.click();
+                        }
+                    };
+                    item.addEventListener('click', activate);
+                    item.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            activate();
+                        }
+                    });
+                });
+            };
+            bind();
+        })();
+        </script>
+        """,
+        height=0,
     )
 
 
