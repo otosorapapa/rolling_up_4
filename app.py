@@ -1709,6 +1709,26 @@ NAV_KEYS = [page["key"] for page in SIDEBAR_PAGES]
 NAV_TITLE_LOOKUP = {page["key"]: page["title"] for page in SIDEBAR_PAGES}
 page_lookup = {page["key"]: page["page"] for page in SIDEBAR_PAGES}
 
+NAV_CATEGORY_STATE_KEY = "nav_category"
+PENDING_NAV_CATEGORY_KEY = "_pending_nav_category"
+
+
+def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False) -> None:
+    if not category:
+        return
+    current_category = st.session_state.get(NAV_CATEGORY_STATE_KEY)
+    pending_category = st.session_state.get(PENDING_NAV_CATEGORY_KEY)
+    if current_category == category:
+        if pending_category:
+            st.session_state.pop(PENDING_NAV_CATEGORY_KEY, None)
+        return
+    if pending_category != category:
+        st.session_state[PENDING_NAV_CATEGORY_KEY] = category
+    if NAV_CATEGORY_STATE_KEY not in st.session_state:
+        st.session_state[NAV_CATEGORY_STATE_KEY] = category
+    if rerun_on_lock:
+        st.experimental_rerun()
+
 
 def set_active_page(page_key: str) -> None:
     meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
@@ -1717,7 +1737,7 @@ def set_active_page(page_key: str) -> None:
     st.session_state["nav_page"] = page_key
     category = meta.get("category")
     if category:
-        st.session_state["nav_category"] = category
+        _queue_nav_category(category)
 
 
 def _hex_to_rgb_string(color: str) -> str:
@@ -2114,6 +2134,9 @@ if "tour_pending_nav" in st.session_state:
 current_page_key = st.session_state.get("nav_page", default_key)
 current_meta = SIDEBAR_PAGE_LOOKUP.get(current_page_key, {})
 default_category = current_meta.get("category")
+pending_nav_category = st.session_state.pop(PENDING_NAV_CATEGORY_KEY, None)
+if pending_nav_category:
+    st.session_state[NAV_CATEGORY_STATE_KEY] = pending_nav_category
 if "nav_category" not in st.session_state:
     if default_category:
         st.session_state["nav_category"] = default_category
@@ -2127,6 +2150,9 @@ category_label_lookup = {
 }
 
 if category_options:
+    current_nav_category = st.session_state.get("nav_category")
+    if current_nav_category not in category_options:
+        st.session_state["nav_category"] = category_options[0]
     selected_category = st.sidebar.radio(
         "機能カテゴリ",
         category_options,
@@ -2160,7 +2186,7 @@ page = page_lookup[page_key]
 page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key, {})
 current_category = page_meta.get("category")
 if current_category and st.session_state.get("nav_category") != current_category:
-    st.session_state["nav_category"] = current_category
+    _queue_nav_category(current_category, rerun_on_lock=True)
 if page_meta.get("tagline"):
     st.sidebar.caption(page_meta["tagline"])
 
