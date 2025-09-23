@@ -586,8 +586,8 @@ elegant_on = st.session_state.get("elegant_on", True)
 
 # ===== 品格UI CSS（配色/余白/フォント/境界の見直し） =====
 if elegant_on:
-    st.markdown(
-        """
+st.markdown(
+    """
     <style>
       :root{
         --ink:#0e1f33;
@@ -616,8 +616,269 @@ if elegant_on:
       [data-testid="stSidebar"] *{ color:#fff !important; }
     </style>
     """,
-        unsafe_allow_html=True,
-    )
+    unsafe_allow_html=True,
+)
+
+INDUSTRY_TEMPLATES: Dict[str, Dict[str, object]] = {
+    "restaurant": {
+        "label": "飲食業",
+        "description": "メニュー別売上や客数、FLコストを前提とした飲食業向けテンプレートです。",
+        "goal": "テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目標とします。",
+        "fields": [
+            "メニュー/コース名",
+            "店舗・業態",
+            "日次または月次の客数",
+            "食材費・人件費などのFLコスト",
+        ],
+        "recommended_metrics": [
+            {
+                "name": "客単価",
+                "value": 2800,
+                "unit": "円",
+                "description": "売上高 ÷ 来店客数",
+            },
+            {
+                "name": "席稼働率",
+                "value": 0.85,
+                "unit": "%",
+                "description": "ピーク帯の稼働席数 ÷ 総席数",
+            },
+            {
+                "name": "FLコスト比率",
+                "value": 0.60,
+                "unit": "%",
+                "description": "食材費＋人件費 ÷ 売上高",
+            },
+        ],
+        "settings": {
+            "yoy_threshold": -0.08,
+            "delta_threshold": -200000.0,
+            "slope_threshold": -0.7,
+        },
+        "template_columns": ["店舗名", "メニュー名", "カテゴリ", "SKUコード"],
+        "template_sample_rows": [
+            {
+                "店舗名": "丸の内本店",
+                "メニュー名": "看板ランチセット",
+                "カテゴリ": "ランチ",
+                "SKUコード": "MENU001",
+            },
+            {
+                "店舗名": "丸の内本店",
+                "メニュー名": "季節ディナーコース",
+                "カテゴリ": "ディナー",
+                "SKUコード": "MENU002",
+            },
+        ],
+        "financial_profile": {
+            "cogs_ratio": 0.35,
+            "opex_ratio": 0.32,
+            "other_income_ratio": 0.02,
+            "interest_ratio": 0.01,
+            "tax_ratio": 0.23,
+            "asset_turnover": 3.0,
+            "balance_assets": [
+                {"item": "現金及び預金", "ratio": 0.28},
+                {"item": "売掛金", "ratio": 0.18},
+                {"item": "棚卸資産", "ratio": 0.22},
+                {"item": "固定資産", "ratio": 0.32},
+            ],
+            "balance_liabilities": [
+                {"item": "流動負債", "ratio": 0.40},
+                {"item": "固定負債", "ratio": 0.18},
+                {"item": "純資産", "ratio": 0.42},
+            ],
+            "cash_flow": [
+                {"item": "営業キャッシュフロー", "ratio": 0.12},
+                {"item": "投資キャッシュフロー", "ratio": -0.05},
+                {"item": "財務キャッシュフロー", "ratio": -0.03},
+            ],
+        },
+    },
+    "retail": {
+        "label": "小売業",
+        "description": "カテゴリ別の販売計画や在庫を管理する小売業向けテンプレートです。",
+        "goal": "テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目標とします。",
+        "fields": [
+            "商品カテゴリ",
+            "SKU/商品コード",
+            "在庫数量",
+            "仕入原価",
+        ],
+        "recommended_metrics": [
+            {
+                "name": "在庫回転率",
+                "value": 14,
+                "unit": "回/年",
+                "description": "売上原価 ÷ 平均在庫",
+            },
+            {
+                "name": "客単価",
+                "value": 6200,
+                "unit": "円",
+                "description": "売上高 ÷ 購買客数",
+            },
+            {
+                "name": "粗利率",
+                "value": 0.38,
+                "unit": "%",
+                "description": "（売上高 − 売上原価）÷ 売上高",
+            },
+        ],
+        "settings": {
+            "yoy_threshold": -0.06,
+            "delta_threshold": -300000.0,
+            "slope_threshold": -0.5,
+        },
+        "template_columns": ["店舗名", "商品カテゴリ", "商品名", "SKUコード"],
+        "template_sample_rows": [
+            {
+                "店舗名": "旗艦店",
+                "商品カテゴリ": "食品",
+                "商品名": "定番スイーツA",
+                "SKUコード": "SKU001",
+            },
+            {
+                "店舗名": "旗艦店",
+                "商品カテゴリ": "日用品",
+                "商品名": "人気雑貨B",
+                "SKUコード": "SKU002",
+            },
+        ],
+        "financial_profile": {
+            "cogs_ratio": 0.62,
+            "opex_ratio": 0.22,
+            "other_income_ratio": 0.01,
+            "interest_ratio": 0.005,
+            "tax_ratio": 0.23,
+            "asset_turnover": 2.4,
+            "balance_assets": [
+                {"item": "現金及び預金", "ratio": 0.18},
+                {"item": "売掛金", "ratio": 0.22},
+                {"item": "棚卸資産", "ratio": 0.36},
+                {"item": "固定資産", "ratio": 0.24},
+            ],
+            "balance_liabilities": [
+                {"item": "仕入債務", "ratio": 0.35},
+                {"item": "短期借入金", "ratio": 0.18},
+                {"item": "純資産", "ratio": 0.47},
+            ],
+            "cash_flow": [
+                {"item": "営業キャッシュフロー", "ratio": 0.09},
+                {"item": "投資キャッシュフロー", "ratio": -0.03},
+                {"item": "財務キャッシュフロー", "ratio": -0.01},
+            ],
+        },
+    },
+    "service": {
+        "label": "サービス業",
+        "description": "契約継続率や稼働率を重視するサービス業向けテンプレートです。",
+        "goal": "テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目標とします。",
+        "fields": [
+            "サービス名",
+            "担当チーム",
+            "契約ID/顧客ID",
+            "稼働時間・提供工数",
+        ],
+        "recommended_metrics": [
+            {
+                "name": "稼働率",
+                "value": 0.78,
+                "unit": "%",
+                "description": "提供工数 ÷ 提供可能工数",
+            },
+            {
+                "name": "契約継続率",
+                "value": 0.92,
+                "unit": "%",
+                "description": "継続契約数 ÷ 全契約数",
+            },
+            {
+                "name": "人時売上高",
+                "value": 9500,
+                "unit": "円",
+                "description": "売上高 ÷ 提供工数",
+            },
+        ],
+        "settings": {
+            "yoy_threshold": -0.04,
+            "delta_threshold": -150000.0,
+            "slope_threshold": -0.4,
+        },
+        "template_columns": ["サービス名", "担当チーム", "契約ID", "SKUコード"],
+        "template_sample_rows": [
+            {
+                "サービス名": "サポートプランA",
+                "担当チーム": "CS本部",
+                "契約ID": "PLAN-A",
+                "SKUコード": "SRV001",
+            },
+            {
+                "サービス名": "プロフェッショナルサービスB",
+                "担当チーム": "導入G",
+                "契約ID": "PLAN-B",
+                "SKUコード": "SRV002",
+            },
+        ],
+        "financial_profile": {
+            "cogs_ratio": 0.28,
+            "opex_ratio": 0.45,
+            "other_income_ratio": 0.03,
+            "interest_ratio": 0.01,
+            "tax_ratio": 0.24,
+            "asset_turnover": 1.8,
+            "balance_assets": [
+                {"item": "現金及び預金", "ratio": 0.32},
+                {"item": "売掛金", "ratio": 0.28},
+                {"item": "無形資産", "ratio": 0.25},
+                {"item": "投資その他", "ratio": 0.15},
+            ],
+            "balance_liabilities": [
+                {"item": "流動負債", "ratio": 0.34},
+                {"item": "固定負債", "ratio": 0.16},
+                {"item": "純資産", "ratio": 0.50},
+            ],
+            "cash_flow": [
+                {"item": "営業キャッシュフロー", "ratio": 0.18},
+                {"item": "投資キャッシュフロー", "ratio": -0.07},
+                {"item": "財務キャッシュフロー", "ratio": -0.04},
+            ],
+        },
+    },
+}
+
+INDUSTRY_TEMPLATE_ORDER = ["restaurant", "retail", "service"]
+DEFAULT_TEMPLATE_KEY = "retail"
+
+st.markdown(
+    """
+    <style>
+    .mobile-sticky-actions{
+      position:sticky;
+      bottom:0;
+      padding:0.85rem 1rem;
+      background:linear-gradient(180deg, rgba(243,246,251,0), rgba(243,246,251,0.92) 60%, rgba(243,246,251,1) 100%);
+      border-top:1px solid var(--border);
+      box-shadow:0 -8px 24px rgba(11,44,74,0.12);
+      z-index:90;
+    }
+    .mobile-sticky-actions .mobile-action-caption{
+      margin:0.35rem 0 0;
+      font-size:0.82rem;
+      color:var(--muted);
+      text-align:center;
+    }
+    @media (max-width: 880px){
+      body, .stApp, [data-testid="stAppViewContainer"]{ font-size:15px; }
+      .mck-hero{ padding:1.25rem; }
+      .mobile-sticky-actions{ padding:0.75rem 0.85rem; }
+      .mobile-sticky-actions .stButton>button{ padding:0.85rem 1.1rem; font-size:1rem; }
+      .stTabs [data-baseweb="tab"]{ font-size:0.9rem; padding:0.45rem 0.75rem; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---------------- Session State ----------------
 if "data_monthly" not in st.session_state:
@@ -625,15 +886,32 @@ if "data_monthly" not in st.session_state:
 if "data_year" not in st.session_state:
     st.session_state.data_year = None
 if "settings" not in st.session_state:
+    default_template = INDUSTRY_TEMPLATES.get(DEFAULT_TEMPLATE_KEY, {})
+    template_defaults = default_template.get("settings", {})
     st.session_state.settings = {
         "window": 12,
         "last_n": 12,
         "missing_policy": "zero_fill",
-        "yoy_threshold": -0.10,
-        "delta_threshold": -300000.0,
-        "slope_threshold": -1.0,
+        "yoy_threshold": template_defaults.get("yoy_threshold", -0.10),
+        "delta_threshold": template_defaults.get("delta_threshold", -300000.0),
+        "slope_threshold": template_defaults.get("slope_threshold", -1.0),
         "currency_unit": "円",
+        "industry_template": DEFAULT_TEMPLATE_KEY,
+        "template_kpi_targets": [
+            dict(metric) for metric in default_template.get("recommended_metrics", [])
+        ],
     }
+else:
+    if "industry_template" not in st.session_state.settings:
+        st.session_state.settings["industry_template"] = DEFAULT_TEMPLATE_KEY
+    if "template_kpi_targets" not in st.session_state.settings:
+        tpl = INDUSTRY_TEMPLATES.get(
+            st.session_state.settings.get("industry_template", DEFAULT_TEMPLATE_KEY),
+            INDUSTRY_TEMPLATES[DEFAULT_TEMPLATE_KEY],
+        )
+        st.session_state.settings["template_kpi_targets"] = [
+            dict(metric) for metric in tpl.get("recommended_metrics", [])
+        ]
 if "notes" not in st.session_state:
     st.session_state.notes = {}  # product_code -> str
 if "tags" not in st.session_state:
@@ -674,6 +952,263 @@ UNIT_MAP = {"円": 1, "千円": 1_000, "百万円": 1_000_000}
 def log_click(name: str):
     """Increment click count for command bar actions."""
     st.session_state.click_log[name] = st.session_state.click_log.get(name, 0) + 1
+
+
+def get_active_template_key() -> str:
+    settings = st.session_state.get("settings", {})
+    key = settings.get("industry_template", DEFAULT_TEMPLATE_KEY)
+    return key if key in INDUSTRY_TEMPLATES else DEFAULT_TEMPLATE_KEY
+
+
+def get_template_config(template_key: Optional[str] = None) -> Dict[str, object]:
+    key = template_key or get_active_template_key()
+    return INDUSTRY_TEMPLATES.get(key, INDUSTRY_TEMPLATES[DEFAULT_TEMPLATE_KEY])
+
+
+def apply_industry_template(template_key: str) -> None:
+    if "settings" not in st.session_state:
+        return
+    template = INDUSTRY_TEMPLATES.get(template_key)
+    if not template:
+        return
+    settings = st.session_state.settings
+    template_defaults = template.get("settings", {})
+    for field, value in template_defaults.items():
+        settings[field] = value
+    settings["industry_template"] = template_key
+    settings["template_kpi_targets"] = [
+        dict(metric) for metric in template.get("recommended_metrics", [])
+    ]
+
+
+def build_industry_template_csv(template_key: str, months: int = 12) -> bytes:
+    template = INDUSTRY_TEMPLATES.get(template_key)
+    if not template:
+        return b""
+    base_columns = template.get("template_columns", ["品目名"])
+    sample_rows = template.get("template_sample_rows") or [{}]
+    end_period = pd.Timestamp.today().to_period("M")
+    periods = pd.period_range(end_period - (months - 1), end_period, freq="M")
+    month_columns = [period.strftime("%Y-%m") for period in periods]
+    rows: List[List[object]] = []
+    for row in sample_rows:
+        base_values = [row.get(col, "") for col in base_columns]
+        month_values = [0 for _ in month_columns]
+        rows.append(base_values + month_values)
+    if not rows:
+        rows.append(["" for _ in base_columns + month_columns])
+    df = pd.DataFrame(rows, columns=base_columns + month_columns)
+    return df.to_csv(index=False).encode("utf-8-sig")
+
+
+def _normalize_statement_items(items: List[Dict[str, float]]) -> List[Dict[str, float]]:
+    normalized: List[Dict[str, float]] = []
+    total = 0.0
+    for item in items:
+        label = item.get("item") or item.get("label") or "項目"
+        ratio_raw = item.get("ratio", 0.0)
+        try:
+            ratio = float(ratio_raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(ratio) or ratio == 0:
+            continue
+        normalized.append({"item": label, "ratio": ratio})
+        total += ratio
+    if not normalized or total == 0:
+        return [{"item": "合計", "ratio": 1.0}]
+    return [
+        {"item": entry["item"], "ratio": entry["ratio"] / total}
+        for entry in normalized
+    ]
+
+
+def build_financial_statements(
+    year_df: Optional[pd.DataFrame],
+    month: Optional[str],
+    template_key: str,
+) -> Dict[str, object]:
+    template = get_template_config(template_key)
+    profile = template.get("financial_profile", {})
+    meta_template = {
+        "template_key": template_key,
+        "template_label": template.get("label", template_key),
+        "revenue": 0.0,
+        "assets_total": 0.0,
+        "net_income": 0.0,
+    }
+    if year_df is None or month is None:
+        return {
+            "income": pd.DataFrame(),
+            "balance": pd.DataFrame(),
+            "cash": pd.DataFrame(),
+            "meta": meta_template,
+        }
+    snapshot = year_df[year_df["month"] == month].dropna(subset=["year_sum"])
+    if snapshot.empty:
+        return {
+            "income": pd.DataFrame(),
+            "balance": pd.DataFrame(),
+            "cash": pd.DataFrame(),
+            "meta": meta_template,
+        }
+
+    revenue = float(snapshot["year_sum"].sum())
+    if not math.isfinite(revenue) or revenue <= 0:
+        return {
+            "income": pd.DataFrame(),
+            "balance": pd.DataFrame(),
+            "cash": pd.DataFrame(),
+            "meta": meta_template,
+        }
+
+    cogs_ratio = profile.get("cogs_ratio", 0.6)
+    opex_ratio = profile.get("opex_ratio", 0.25)
+    other_income_ratio = profile.get("other_income_ratio", 0.01)
+    interest_ratio = profile.get("interest_ratio", 0.0)
+    tax_ratio = profile.get("tax_ratio", 0.23)
+
+    cogs_value = -revenue * cogs_ratio
+    gross_profit = revenue + cogs_value
+    opex_value = -revenue * opex_ratio
+    operating_income = gross_profit + opex_value
+    other_income = revenue * other_income_ratio
+    interest_expense = -revenue * interest_ratio
+    ordinary_income = operating_income + other_income + interest_expense
+    tax_base = max(ordinary_income, 0.0)
+    taxes_value = -tax_base * tax_ratio
+    net_income = ordinary_income + taxes_value
+
+    income_records: List[Dict[str, object]] = [
+        {"項目": "売上高", "金額": revenue, "構成比": 1.0},
+        {
+            "項目": profile.get("cogs_label", "売上原価"),
+            "金額": cogs_value,
+            "構成比": cogs_value / revenue,
+        },
+        {"項目": "売上総利益", "金額": gross_profit, "構成比": gross_profit / revenue},
+        {"項目": "販管費", "金額": opex_value, "構成比": opex_value / revenue},
+        {"項目": "営業利益", "金額": operating_income, "構成比": operating_income / revenue},
+    ]
+    if other_income:
+        income_records.append(
+            {
+                "項目": "営業外収益",
+                "金額": other_income,
+                "構成比": other_income / revenue,
+            }
+        )
+    if interest_expense:
+        income_records.append(
+            {
+                "項目": "支払利息等",
+                "金額": interest_expense,
+                "構成比": interest_expense / revenue,
+            }
+        )
+    income_records.append(
+        {
+            "項目": "経常利益",
+            "金額": ordinary_income,
+            "構成比": ordinary_income / revenue,
+        }
+    )
+    if taxes_value:
+        income_records.append(
+            {
+                "項目": "法人税等",
+                "金額": taxes_value,
+                "構成比": taxes_value / revenue,
+            }
+        )
+    income_records.append(
+        {"項目": "当期純利益", "金額": net_income, "構成比": net_income / revenue}
+    )
+    income_df = pd.DataFrame(income_records)
+
+    asset_turnover = profile.get("asset_turnover", 2.5)
+    if not asset_turnover or not math.isfinite(asset_turnover):
+        asset_turnover = 2.5
+    assets_total = revenue / asset_turnover if asset_turnover else revenue
+
+    assets_items = _normalize_statement_items(profile.get("balance_assets", []))
+    liabilities_items = _normalize_statement_items(
+        profile.get("balance_liabilities", [])
+    )
+
+    balance_records: List[Dict[str, object]] = [
+        {
+            "区分": "資産",
+            "項目": item["item"],
+            "金額": assets_total * item["ratio"],
+            "構成比": item["ratio"],
+        }
+        for item in assets_items
+    ]
+    balance_records.extend(
+        {
+            "区分": "負債・純資産",
+            "項目": item["item"],
+            "金額": assets_total * item["ratio"],
+            "構成比": item["ratio"],
+        }
+        for item in liabilities_items
+    )
+    balance_df = pd.DataFrame(balance_records)
+
+    cash_records: List[Dict[str, object]] = []
+    net_cash = 0.0
+    for item in profile.get("cash_flow", []):
+        label = item.get("item") or "キャッシュフロー"
+        ratio_raw = item.get("ratio", 0.0)
+        try:
+            ratio = float(ratio_raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(ratio) or ratio == 0:
+            continue
+        amount = revenue * ratio
+        net_cash += amount
+        cash_records.append({"項目": label, "金額": amount, "構成比": ratio})
+    if cash_records:
+        cash_records.append(
+            {
+                "項目": "フリーキャッシュフロー",
+                "金額": net_cash,
+                "構成比": net_cash / revenue,
+            }
+        )
+    cash_df = pd.DataFrame(cash_records)
+
+    return {
+        "income": income_df,
+        "balance": balance_df,
+        "cash": cash_df,
+        "meta": {
+            "template_key": template_key,
+            "template_label": template.get("label", template_key),
+            "revenue": revenue,
+            "assets_total": assets_total,
+            "net_income": net_income,
+        },
+    }
+
+
+def format_template_metric(metric: Dict[str, object]) -> str:
+    unit = metric.get("unit", "")
+    value = metric.get("value", "—")
+    if isinstance(value, (int, float)):
+        if unit == "%":
+            return f"{value * 100:.1f}%"
+        if unit == "円":
+            return f"{format_int(value)} 円"
+        if unit:
+            return f"{value}{unit}"
+        return format_int(value)
+    value_str = value if isinstance(value, str) else str(value)
+    if unit and not value_str.endswith(unit):
+        return f"{value_str}{unit}"
+    return value_str
 
 
 def render_app_hero():
@@ -1159,6 +1694,9 @@ def int_input(label: str, value: int) -> int:
 
 
 def render_sidebar_summary() -> Optional[str]:
+    template_label = get_template_config().get("label", get_active_template_key())
+    st.sidebar.caption(f"テンプレート: {template_label}（推奨指標を自動反映）")
+
     year_df = st.session_state.get("data_year")
     if year_df is None or year_df.empty:
         st.sidebar.caption("データを取り込むと最新サマリーが表示されます。")
@@ -1628,23 +2166,23 @@ st.markdown(
 )
 
 SIDEBAR_CATEGORY_STYLES = {
-    "customer": {
-        "label": "顧客管理",
-        "color": "#2d6f8e",
-        "description": "顧客データの登録や共有に関する操作をまとめています。",
+    "input": {
+        "label": "データ入力",
+        "color": "#4f9ab8",
+        "description": "テンプレート選択からアップロード、設定までの初期操作を集約しています。",
     },
-    "sales": {
-        "label": "売上分析",
-        "color": "#71b7d4",
-        "description": "売上の傾向を読み解く分析機能を集約しています。",
+    "report": {
+        "label": "分析レポート",
+        "color": "#123a5f",
+        "description": "ダッシュボードやランキングなど、分析結果を確認するページです。",
     },
-    "cash": {
-        "label": "資金繰り",
+    "simulation": {
+        "label": "シナリオシミュレーション",
         "color": "#f2994a",
-        "description": "リスク兆候やキャッシュフロー監視に役立つ機能です。",
+        "description": "異常検知やアラートで将来シナリオやリスクを検証します。",
     },
 }
-SIDEBAR_CATEGORY_ORDER = ["customer", "sales", "cash"]
+SIDEBAR_CATEGORY_ORDER = ["input", "report", "simulation"]
 
 SIDEBAR_PAGES = [
     {
@@ -1654,7 +2192,7 @@ SIDEBAR_PAGES = [
         "title": "ホーム",
         "tagline": "分析ダッシュボード",
         "tooltip": "主要KPIとトレンドを俯瞰できるダッシュボードです。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "ranking",
@@ -1663,7 +2201,7 @@ SIDEBAR_PAGES = [
         "title": "ランキング",
         "tagline": "指標別トップ・ボトム",
         "tooltip": "指定月の上位・下位SKUを指標別に比較して勢いを捉えます。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "compare",
@@ -1672,7 +2210,7 @@ SIDEBAR_PAGES = [
         "title": "比較ビュー",
         "tagline": "SKU横断の推移比較",
         "tooltip": "複数SKUの推移を重ね合わせ、変化の違いを見比べます。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "detail",
@@ -1681,7 +2219,7 @@ SIDEBAR_PAGES = [
         "title": "SKU詳細",
         "tagline": "個別SKUの深掘り",
         "tooltip": "個別SKUの時系列やAIサマリーで背景を確認します。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "correlation",
@@ -1690,7 +2228,7 @@ SIDEBAR_PAGES = [
         "title": "相関分析",
         "tagline": "指標のつながり分析",
         "tooltip": "散布図と相関係数で指標同士やSKU間の関係を把握します。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "category",
@@ -1699,7 +2237,7 @@ SIDEBAR_PAGES = [
         "title": "併買カテゴリ",
         "tagline": "併買パターンの探索",
         "tooltip": "購買ネットワークのクラスタリングでクロスセル候補を探します。",
-        "category": "sales",
+        "category": "report",
     },
     {
         "key": "import",
@@ -1708,7 +2246,7 @@ SIDEBAR_PAGES = [
         "title": "データ取込",
         "tagline": "CSV/Excelアップロード",
         "tooltip": "CSVやExcelの月次データを取り込み、分析用データを整えます。",
-        "category": "customer",
+        "category": "input",
     },
     {
         "key": "anomaly",
@@ -1717,7 +2255,7 @@ SIDEBAR_PAGES = [
         "title": "異常検知",
         "tagline": "異常値とリスク検知",
         "tooltip": "回帰残差を基にした異常値スコアでリスク兆候を洗い出します。",
-        "category": "cash",
+        "category": "simulation",
     },
     {
         "key": "alert",
@@ -1726,7 +2264,7 @@ SIDEBAR_PAGES = [
         "title": "アラート",
         "tagline": "しきい値ベースの監視",
         "tooltip": "設定した条件に該当するSKUをリスト化し、対応優先度を整理します。",
-        "category": "cash",
+        "category": "simulation",
     },
     {
         "key": "settings",
@@ -1735,7 +2273,7 @@ SIDEBAR_PAGES = [
         "title": "設定",
         "tagline": "集計条件の設定",
         "tooltip": "年計ウィンドウや通貨単位など、分析前提を調整します。",
-        "category": "customer",
+        "category": "input",
     },
     {
         "key": "saved",
@@ -1744,7 +2282,7 @@ SIDEBAR_PAGES = [
         "title": "保存ビュー",
         "tagline": "条件の保存と共有",
         "tooltip": "現在の設定や比較条件を保存し、ワンクリックで再現します。",
-        "category": "customer",
+        "category": "input",
     },
 ]
 
@@ -2681,6 +3219,68 @@ if page == "データ取込":
         "データ取込", "ファイルのマッピングと品質チェックを行います。", icon="📥"
     )
 
+    template_options = [key for key in INDUSTRY_TEMPLATE_ORDER if key in INDUSTRY_TEMPLATES]
+    active_template = get_active_template_key()
+    if active_template not in template_options:
+        template_options.append(active_template)
+    template_index = (
+        template_options.index(active_template)
+        if active_template in template_options
+        else 0
+    )
+
+    st.markdown("#### 業種テンプレートの選択")
+    selected_template = st.selectbox(
+        "業種別テンプレート",
+        template_options,
+        index=template_index,
+        format_func=lambda key: INDUSTRY_TEMPLATES.get(key, {}).get("label", key),
+        help="業種を選ぶと推奨科目や指標、閾値が自動セットされ入力工数を削減できます。",
+    )
+    if selected_template != active_template:
+        apply_industry_template(selected_template)
+        st.success(
+            f"{INDUSTRY_TEMPLATES.get(selected_template, {}).get('label', selected_template)}"
+            " テンプレートを適用しました。閾値と推奨KPIが更新されています。"
+        )
+        active_template = selected_template
+
+    template_config = get_template_config(active_template)
+    goal_text = template_config.get("goal")
+    if goal_text:
+        st.caption(goal_text)
+    else:
+        st.caption("テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目指します。")
+
+    col_fields, col_metrics = st.columns(2)
+    with col_fields:
+        st.markdown("##### 推奨科目")
+        for field in template_config.get("fields", []):
+            st.markdown(f"- {field}")
+    with col_metrics:
+        st.markdown("##### 自動セットされる指標")
+        metrics_list = template_config.get("recommended_metrics", [])
+        if metrics_list:
+            for metric in metrics_list:
+                name = metric.get("name", "指標")
+                desc = metric.get("description", "")
+                value_text = format_template_metric(metric)
+                detail = f" （{desc}）" if desc else ""
+                st.markdown(f"- **{name}**: {value_text}{detail}")
+        else:
+            st.caption("テンプレートに紐づく指標はありません。")
+
+    template_bytes = build_industry_template_csv(active_template)
+    st.download_button(
+        f"{template_config.get('label', 'テンプレート')}向けCSVテンプレートをダウンロード",
+        data=template_bytes,
+        file_name=f"{active_template}_template.csv",
+        mime="text/csv",
+        help="推奨科目と12ヶ月の月次列を含むテンプレートCSVをダウンロードします。",
+    )
+
+    st.divider()
+
     st.markdown(
         "**Excel(.xlsx) / CSV をアップロードしてください。** "
         "列に `YYYY-MM`（または日付系）形式の月度が含まれている必要があります。"
@@ -2737,11 +3337,20 @@ if page == "データ取込":
         )
         code_col = None if product_code_col == "<なし>" else product_code_col
 
-        if st.button(
+        st.markdown("<div class='mobile-sticky-actions'>", unsafe_allow_html=True)
+        convert_clicked = st.button(
             "変換＆取込",
             type="primary",
             help="年計・YoY・Δを自動計算し、ダッシュボード各ページで利用できる形式に整えます。",
-        ):
+            use_container_width=True,
+        )
+        st.markdown(
+            "<p class='mobile-action-caption'>テンプレートの推奨科目を使うと入力から取り込みまでを15分以内で完了できます。</p>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if convert_clicked:
             try:
                 with st.spinner("年計データを計算中…"):
                     long_df, year_df = ingest_wide_dataframe(
@@ -2812,6 +3421,88 @@ elif page == "ダッシュボード":
     c2.metric("年計YoY", f"{kpi['yoy']*100:.1f} %" if kpi["yoy"] is not None else "—")
     c3.metric("前月差(Δ)", format_amount(kpi["delta"], unit))
     c4.metric("HHI(集中度)", f"{hhi:.3f}")
+
+    template_key = get_active_template_key()
+    template_config = get_template_config(template_key)
+    statements = build_financial_statements(
+        st.session_state.data_year, end_m, template_key
+    )
+    meta_info = statements.get("meta", {})
+    statement_tabs = st.tabs(["損益計算書", "貸借対照表", "資金繰り表"])
+    tab_keys = ["income", "balance", "cash"]
+    unit_scale = UNIT_MAP.get(unit, 1)
+    for tab, key in zip(statement_tabs, tab_keys):
+        with tab:
+            df_stmt = statements.get(key)
+            if df_stmt is None or df_stmt.empty:
+                st.info(
+                    "表示できる財務データがありません。対象月やテンプレートを変更してください。"
+                )
+            else:
+                display_df = df_stmt.copy()
+                display_df["金額"] = display_df["金額"] / unit_scale
+                display_df["構成比(%)"] = display_df["構成比"] * 100
+                column_order = ["項目", "金額", "構成比(%)"]
+                if "区分" in display_df.columns:
+                    column_order.insert(0, "区分")
+                display_df = display_df[column_order]
+                st.dataframe(
+                    display_df.style.format(
+                        {"金額": "{:,.0f}", "構成比(%)": "{:+.1f}%"}
+                    ),
+                    use_container_width=True,
+                )
+                plot_df = display_df.copy()
+                text_values = plot_df["金額"].apply(lambda v: f"{v:,.0f}{unit}")
+                fig = px.bar(
+                    plot_df,
+                    x="金額",
+                    y="項目",
+                    orientation="h",
+                    color="区分" if "区分" in plot_df.columns else None,
+                    text=text_values,
+                )
+                fig.update_layout(
+                    height=380,
+                    xaxis_title=f"金額({unit})",
+                    yaxis_title="",
+                    margin=dict(l=10, r=10, t=40, b=10),
+                )
+                fig.update_traces(textposition="outside")
+                fig = apply_elegant_theme(
+                    fig, theme=st.session_state.get("ui_theme", "dark")
+                )
+                render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+
+                if key == "income":
+                    st.caption(
+                        f"{template_config.get('label', 'テンプレート')}テンプレートによる損益試算。"
+                        f" 年計売上 {format_amount(meta_info.get('revenue'), unit)} / "
+                        f"当期純利益 {format_amount(meta_info.get('net_income'), unit)}"
+                    )
+                elif key == "balance":
+                    st.caption(
+                        f"{template_config.get('label', 'テンプレート')}テンプレートをもとに"
+                        f" 総資産 {format_amount(meta_info.get('assets_total'), unit)} を想定した構成です。"
+                    )
+                else:
+                    st.caption(
+                        "キャッシュフローは売上高とテンプレート比率を基に簡易推計しています。"
+                    )
+
+    metrics_list = (
+        st.session_state.settings.get("template_kpi_targets")
+        or template_config.get("recommended_metrics", [])
+    )
+    if metrics_list:
+        st.markdown("#### テンプレート推奨KPI")
+        for idx in range(0, len(metrics_list), 3):
+            row_metrics = metrics_list[idx : idx + 3]
+            cols = st.columns(len(row_metrics))
+            for col, metric in zip(cols, row_metrics):
+                col.metric(metric.get("name", "指標"), format_template_metric(metric))
+                if metric.get("description"):
+                    col.caption(metric["description"])
 
     snap = (
         st.session_state.data_year[st.session_state.data_year["month"] == end_m]
