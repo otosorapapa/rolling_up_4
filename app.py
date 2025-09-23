@@ -2623,14 +2623,9 @@ def render_getting_started_intro() -> None:
         },
     ]
 
-    col_steps, col_video = st.columns([3, 2])
-    with col_steps:
-        for idx, step in enumerate(steps, start=1):
-            st.markdown(f"**STEP {idx}. {step['title']}**")
-            st.write(step["body"])
-    with col_video:
-        st.video("https://www.youtube.com/watch?v=_9WiB2PDO7k")
-        st.caption("動画: ダッシュボードの使い方ガイド（約3分）")
+    for idx, step in enumerate(steps, start=1):
+        st.markdown(f"**STEP {idx}. {step['title']}**")
+        st.write(step["body"])
 
     with st.expander("操作のポイントを詳しく見る", expanded=False):
         st.markdown(
