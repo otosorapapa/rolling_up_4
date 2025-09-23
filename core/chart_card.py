@@ -127,16 +127,17 @@ def _ensure_css():
     st.markdown(
         """
 <style>
-.chart-card { position: relative; margin:.25rem 0 1rem; border-radius:12px;
-  border:1px solid var(--color-primary); background:var(--card-bg,#fff); }
-.chart-toolbar { position: sticky; top: -1px; z-index: 5;
+.chart-card { position: relative; margin:.35rem 0 1.2rem; border-radius:16px;
+  border:1px solid var(--border, rgba(11,31,58,0.18)); background:var(--panel,#ffffff);
+  box-shadow:0 16px 32px rgba(11,31,58,0.08); }
+.chart-toolbar { position: sticky; top:-1px; z-index:5;
   display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
-  padding:.35rem .6rem; background: linear-gradient(180deg, rgba(0,58,112,.08), rgba(0,58,112,.02));
-  border-bottom:1px solid var(--color-primary); }
+  padding:.45rem .75rem; background: linear-gradient(180deg, rgba(31,111,235,0.08), rgba(31,111,235,0.02));
+  border-bottom:1px solid var(--border, rgba(11,31,58,0.18)); }
 .chart-toolbar .stRadio, .chart-toolbar .stSelectbox, .chart-toolbar .stSlider,
 .chart-toolbar .stMultiSelect, .chart-toolbar .stCheckbox { margin-bottom:0 !important; }
-.chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:#003a70; }
-.chart-toolbar .stSlider label { color:#003a70; }
+.chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:var(--ink,#0b1f3a); font-weight:600; }
+.chart-toolbar .stSlider label { color:var(--ink,#0b1f3a); }
 .chart-body { padding:.15rem .4rem .4rem; }
 </style>
 """,
@@ -762,7 +763,7 @@ def build_chart_card(
             alternate_side=tb["alt_side"],
         )
 
-    fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "dark"))
+    fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
     plot_height = height or int(tb.get("chart_height", 600))
     base_config = {
         "displaylogo": False,

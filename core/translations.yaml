@@ -27,6 +27,13 @@ header:
     help:
       ja: "上品で読みやすい配色・余白・タイポグラフィを適用"
       en: "Apply refined colors, spacing, and typography for a polished reading experience."
+  dark_mode:
+    label:
+      ja: "ダークモード"
+      en: "Dark mode"
+    help:
+      ja: "長時間の閲覧向けに暗色テーマへ切り替えます"
+      en: "Switch to a low-light navy palette for extended analysis sessions."
   language_selector:
     label:
       ja: "言語"

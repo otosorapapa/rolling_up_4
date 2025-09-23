@@ -6,58 +6,66 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-def apply_elegant_theme(fig: go.Figure, theme: str = "dark") -> go.Figure:
+LIGHT_TEXT = "#0b1f3a"
+LIGHT_GRID = "rgba(11,31,58,0.1)"
+LIGHT_AXIS = "rgba(11,31,58,0.3)"
+DARK_TEXT = "#e6efff"
+DARK_GRID = "rgba(88,166,255,0.2)"
+DARK_AXIS = "rgba(143,181,221,0.35)"
+
+
+def apply_elegant_theme(fig: go.Figure, theme: str = "light") -> go.Figure:
     """Apply subdued, elegant styling to Plotly figures when enabled."""
     if not st.session_state.get("elegant_on", True):
         return fig
     if theme == "dark":
         fig.update_layout(
             template="plotly_dark",
-            paper_bgcolor="#0F1117",
-            plot_bgcolor="#0F1117",
+            paper_bgcolor="#0f2138",
+            plot_bgcolor="#0f2138",
             font=dict(
-                family="Noto Sans JP, Meiryo, Arial",
+                family="Arial, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif",
                 size=12,
-                color="#E9F1FF",
+                color=DARK_TEXT,
             ),
             legend=dict(
-                bgcolor="rgba(17,22,29,.70)",
-                bordercolor="rgba(255,255,255,.14)",
+                bgcolor="rgba(15,33,56,0.85)",
+                bordercolor="rgba(143,181,221,0.24)",
                 borderwidth=1,
             ),
             hoverlabel=dict(
-                bgcolor="rgba(28,39,51,0.92)",
-                bordercolor="rgba(233,241,255,0.18)",
-                font=dict(color="#E9F1FF"),
+                bgcolor="rgba(12,24,40,0.92)",
+                bordercolor="rgba(143,181,221,0.32)",
+                font=dict(color=DARK_TEXT),
             ),
         )
-        grid = "#2A3240"
-        axisline = "rgba(255,255,255,.28)"
-        marker_border = "rgba(233,241,255,0.85)"
+        grid = DARK_GRID
+        axisline = DARK_AXIS
+        marker_border = "rgba(143,181,221,0.65)"
     else:
         fig.update_layout(
             template="plotly_white",
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
             font=dict(
-                family="Noto Sans JP, Meiryo, Arial",
+                family="Arial, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif",
                 size=12,
-                color="#0B1324",
+                color=LIGHT_TEXT,
             ),
             legend=dict(
                 bgcolor="rgba(255,255,255,.85)",
-                bordercolor="rgba(11,19,36,.14)",
+                bordercolor="rgba(11,31,58,0.18)",
                 borderwidth=1,
             ),
             hoverlabel=dict(
                 bgcolor="rgba(255,255,255,0.98)",
-                bordercolor="rgba(11,19,36,0.12)",
-                font=dict(color="#0B1324"),
+                bordercolor="rgba(11,31,58,0.16)",
+                font=dict(color=LIGHT_TEXT),
             ),
         )
-        grid = "rgba(11,19,36,.10)"
-        axisline = "rgba(11,19,36,.30)"
-        marker_border = "rgba(11,19,36,0.24)"
+        grid = LIGHT_GRID
+        axisline = LIGHT_AXIS
+        marker_border = "rgba(11,31,58,0.24)"
     fig.update_xaxes(
         showgrid=True,
         gridcolor=grid,
