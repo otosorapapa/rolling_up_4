@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit.errors import StreamlitAPIException
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -1711,6 +1712,7 @@ page_lookup = {page["key"]: page["page"] for page in SIDEBAR_PAGES}
 
 NAV_CATEGORY_STATE_KEY = "nav_category"
 PENDING_NAV_CATEGORY_KEY = "_pending_nav_category"
+PENDING_NAV_PAGE_KEY = "_pending_nav_page"
 
 
 def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False) -> None:
@@ -1730,14 +1732,24 @@ def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False)
         st.rerun()
 
 
-def set_active_page(page_key: str) -> None:
+def set_active_page(page_key: str, *, rerun_on_lock: bool = False) -> None:
     meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
     if not meta:
         return
-    st.session_state["nav_page"] = page_key
     category = meta.get("category")
+    rerun_required = False
+    try:
+        st.session_state["nav_page"] = page_key
+    except StreamlitAPIException:
+        st.session_state[PENDING_NAV_PAGE_KEY] = page_key
+        rerun_required = True
     if category:
-        _queue_nav_category(category)
+        _queue_nav_category(
+            category,
+            rerun_on_lock=rerun_on_lock and not rerun_required,
+        )
+    if rerun_required and rerun_on_lock:
+        st.rerun()
 
 
 def _hex_to_rgb_string(color: str) -> str:
@@ -2105,7 +2117,7 @@ def render_quick_nav_tabs(active_page_key: str) -> None:
                     disabled=page_key == active_page_key,
                 )
                 if clicked:
-                    set_active_page(page_key)
+                    set_active_page(page_key, rerun_on_lock=True)
                     st.rerun()
                 caption_parts: List[str] = []
                 tagline = page_meta.get("tagline")
@@ -2125,6 +2137,10 @@ else:
 
 if "nav_page" not in st.session_state:
     set_active_page(default_key)
+
+pending_nav_page = st.session_state.pop(PENDING_NAV_PAGE_KEY, None)
+if pending_nav_page in NAV_KEYS:
+    set_active_page(pending_nav_page)
 
 if "tour_pending_nav" in st.session_state:
     pending = st.session_state.pop("tour_pending_nav")
