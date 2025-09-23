@@ -1536,18 +1536,71 @@ st.markdown(
       text-align:center;
       line-height:1.3;
     }
+    .mck-breadcrumb{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      padding:0.75rem 1rem;
+      margin:0 0 1rem;
+      border-radius:12px;
+      background:var(--panel);
+      border:1px solid var(--border);
+      box-shadow:0 10px 20px rgba(11,44,74,0.08);
+      font-size:0.9rem;
+    }
+    .mck-breadcrumb__trail{
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:0.45rem;
+      color:var(--muted);
+      font-weight:600;
+      letter-spacing:.04em;
+    }
+    .mck-breadcrumb__sep{
+      color:var(--muted);
+      opacity:0.6;
+    }
+    .mck-breadcrumb__item--current{
+      color:var(--accent-strong);
+    }
+    .mck-breadcrumb__meta{
+      color:var(--muted);
+      font-weight:600;
+      letter-spacing:.08em;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    .mck-breadcrumb__desc{
+      margin:-0.4rem 0 1.2rem;
+      color:var(--muted);
+      font-size:0.85rem;
+      letter-spacing:.02em;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 SIDEBAR_CATEGORY_STYLES = {
-    "basic": {"label": "基本データ", "color": "#2d6f8e"},
-    "insight": {"label": "深掘り分析", "color": "#71b7d4"},
-    "risk": {"label": "リスク分析", "color": "#f2994a"},
-    "management": {"label": "運用・共有", "color": "#b28cf5"},
+    "customer": {
+        "label": "顧客管理",
+        "color": "#2d6f8e",
+        "description": "顧客データの登録や共有に関する操作をまとめています。",
+    },
+    "sales": {
+        "label": "売上分析",
+        "color": "#71b7d4",
+        "description": "売上の傾向を読み解く分析機能を集約しています。",
+    },
+    "cash": {
+        "label": "資金繰り",
+        "color": "#f2994a",
+        "description": "リスク兆候やキャッシュフロー監視に役立つ機能です。",
+    },
 }
-SIDEBAR_CATEGORY_ORDER = ["basic", "insight", "risk", "management"]
+SIDEBAR_CATEGORY_ORDER = ["customer", "sales", "cash"]
 
 SIDEBAR_PAGES = [
     {
@@ -1557,7 +1610,7 @@ SIDEBAR_PAGES = [
         "title": "ホーム",
         "tagline": "分析ダッシュボード",
         "tooltip": "主要KPIとトレンドを俯瞰できるダッシュボードです。",
-        "category": "basic",
+        "category": "sales",
     },
     {
         "key": "ranking",
@@ -1566,7 +1619,7 @@ SIDEBAR_PAGES = [
         "title": "ランキング",
         "tagline": "指標別トップ・ボトム",
         "tooltip": "指定月の上位・下位SKUを指標別に比較して勢いを捉えます。",
-        "category": "insight",
+        "category": "sales",
     },
     {
         "key": "compare",
@@ -1575,7 +1628,7 @@ SIDEBAR_PAGES = [
         "title": "比較ビュー",
         "tagline": "SKU横断の推移比較",
         "tooltip": "複数SKUの推移を重ね合わせ、変化の違いを見比べます。",
-        "category": "insight",
+        "category": "sales",
     },
     {
         "key": "detail",
@@ -1584,7 +1637,7 @@ SIDEBAR_PAGES = [
         "title": "SKU詳細",
         "tagline": "個別SKUの深掘り",
         "tooltip": "個別SKUの時系列やAIサマリーで背景を確認します。",
-        "category": "insight",
+        "category": "sales",
     },
     {
         "key": "correlation",
@@ -1593,7 +1646,7 @@ SIDEBAR_PAGES = [
         "title": "相関分析",
         "tagline": "指標のつながり分析",
         "tooltip": "散布図と相関係数で指標同士やSKU間の関係を把握します。",
-        "category": "insight",
+        "category": "sales",
     },
     {
         "key": "category",
@@ -1602,7 +1655,7 @@ SIDEBAR_PAGES = [
         "title": "併買カテゴリ",
         "tagline": "併買パターンの探索",
         "tooltip": "購買ネットワークのクラスタリングでクロスセル候補を探します。",
-        "category": "insight",
+        "category": "sales",
     },
     {
         "key": "import",
@@ -1611,7 +1664,7 @@ SIDEBAR_PAGES = [
         "title": "データ取込",
         "tagline": "CSV/Excelアップロード",
         "tooltip": "CSVやExcelの月次データを取り込み、分析用データを整えます。",
-        "category": "basic",
+        "category": "customer",
     },
     {
         "key": "anomaly",
@@ -1620,7 +1673,7 @@ SIDEBAR_PAGES = [
         "title": "異常検知",
         "tagline": "異常値とリスク検知",
         "tooltip": "回帰残差を基にした異常値スコアでリスク兆候を洗い出します。",
-        "category": "risk",
+        "category": "cash",
     },
     {
         "key": "alert",
@@ -1629,7 +1682,7 @@ SIDEBAR_PAGES = [
         "title": "アラート",
         "tagline": "しきい値ベースの監視",
         "tooltip": "設定した条件に該当するSKUをリスト化し、対応優先度を整理します。",
-        "category": "risk",
+        "category": "cash",
     },
     {
         "key": "settings",
@@ -1638,7 +1691,7 @@ SIDEBAR_PAGES = [
         "title": "設定",
         "tagline": "集計条件の設定",
         "tooltip": "年計ウィンドウや通貨単位など、分析前提を調整します。",
-        "category": "management",
+        "category": "customer",
     },
     {
         "key": "saved",
@@ -1647,7 +1700,7 @@ SIDEBAR_PAGES = [
         "title": "保存ビュー",
         "tagline": "条件の保存と共有",
         "tooltip": "現在の設定や比較条件を保存し、ワンクリックで再現します。",
-        "category": "management",
+        "category": "customer",
     },
 ]
 
@@ -1655,6 +1708,16 @@ SIDEBAR_PAGE_LOOKUP = {page["key"]: page for page in SIDEBAR_PAGES}
 NAV_KEYS = [page["key"] for page in SIDEBAR_PAGES]
 NAV_TITLE_LOOKUP = {page["key"]: page["title"] for page in SIDEBAR_PAGES}
 page_lookup = {page["key"]: page["page"] for page in SIDEBAR_PAGES}
+
+
+def set_active_page(page_key: str) -> None:
+    meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
+    if not meta:
+        return
+    st.session_state["nav_page"] = page_key
+    category = meta.get("category")
+    if category:
+        st.session_state["nav_category"] = category
 
 
 def _hex_to_rgb_string(color: str) -> str:
@@ -1928,6 +1991,110 @@ def render_step_guide(active_nav_key: str) -> None:
     )
 
 
+def render_breadcrumbs(category_key: str, page_key: str) -> None:
+    page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
+    if not page_meta:
+        return
+
+    category_meta = SIDEBAR_CATEGORY_STYLES.get(category_key, {})
+    category_label = category_meta.get("label", category_key or "")
+    page_title = page_meta.get("title") or page_meta.get("page") or page_key
+
+    trail_items: List[tuple[str, bool]] = [("ホーム", False)]
+    if category_label:
+        trail_items.append((category_label, False))
+    trail_items.append((page_title, True))
+
+    trail_html: List[str] = []
+    for idx, (label, is_current) in enumerate(trail_items):
+        item_class = "mck-breadcrumb__item"
+        if is_current:
+            item_class += " mck-breadcrumb__item--current"
+        trail_html.append(
+            f"<span class='{item_class}'>{html.escape(label)}</span>"
+        )
+        if idx < len(trail_items) - 1:
+            trail_html.append("<span class='mck-breadcrumb__sep'>›</span>")
+
+    category_pages = [
+        meta for meta in SIDEBAR_PAGES if meta.get("category") == category_key
+    ]
+    source_pages = category_pages or SIDEBAR_PAGES
+    total = len(source_pages)
+    position = 1
+    for idx, meta in enumerate(source_pages):
+        if meta.get("key") == page_key:
+            position = idx + 1
+            break
+
+    meta_text = f"ページ {position} / {total}" if total else ""
+    breadcrumb_html = (
+        "<div class='mck-breadcrumb'>"
+        f"<div class='mck-breadcrumb__trail'>{''.join(trail_html)}</div>"
+    )
+    if meta_text:
+        breadcrumb_html += f"<div class='mck-breadcrumb__meta'>{html.escape(meta_text)}</div>"
+    else:
+        breadcrumb_html += "<div class='mck-breadcrumb__meta'></div>"
+    breadcrumb_html += "</div>"
+    st.markdown(breadcrumb_html, unsafe_allow_html=True)
+
+    desc_parts: List[str] = []
+    tagline = page_meta.get("tagline")
+    if tagline:
+        desc_parts.append(tagline)
+    category_desc = category_meta.get("description")
+    if category_desc and category_desc not in desc_parts:
+        desc_parts.append(category_desc)
+    if desc_parts:
+        desc_html = " ｜ ".join(html.escape(part) for part in desc_parts)
+        st.markdown(
+            f"<div class='mck-breadcrumb__desc'>{desc_html}</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def render_quick_nav_tabs(active_page_key: str) -> None:
+    if not used_category_keys:
+        return
+
+    tab_labels = [
+        SIDEBAR_CATEGORY_STYLES.get(cat, {}).get("label", cat) for cat in used_category_keys
+    ]
+    tabs = st.tabs(tab_labels)
+    for tab, cat in zip(tabs, used_category_keys):
+        category_meta = SIDEBAR_CATEGORY_STYLES.get(cat, {})
+        category_desc = category_meta.get("description", "")
+        pages_in_category = [
+            meta for meta in SIDEBAR_PAGES if meta.get("category") == cat
+        ]
+        with tab:
+            if category_desc:
+                st.caption(category_desc)
+            for page_meta in pages_in_category:
+                page_key = page_meta.get("key")
+                button_label_parts = [
+                    (page_meta.get("icon") or "").strip(),
+                    page_meta.get("title") or page_meta.get("page") or page_key,
+                ]
+                button_label = " ".join(part for part in button_label_parts if part)
+                clicked = st.button(
+                    button_label,
+                    key=f"quick_nav_{cat}_{page_key}",
+                    use_container_width=True,
+                    disabled=page_key == active_page_key,
+                )
+                if clicked:
+                    set_active_page(page_key)
+                    st.experimental_rerun()
+                caption_parts: List[str] = []
+                tagline = page_meta.get("tagline")
+                if tagline:
+                    caption_parts.append(tagline)
+                if page_key == active_page_key:
+                    caption_parts.append("現在表示中")
+                if caption_parts:
+                    st.caption(" ｜ ".join(caption_parts))
 if st.session_state.get("tour_active", True) and TOUR_STEPS:
     initial_idx = max(0, min(st.session_state.get("tour_step_index", 0), len(TOUR_STEPS) - 1))
     default_key = TOUR_STEPS[initial_idx]["nav_key"]
@@ -1937,20 +2104,65 @@ else:
     default_key = NAV_KEYS[0]
 
 if "nav_page" not in st.session_state:
-    st.session_state["nav_page"] = default_key
+    set_active_page(default_key)
 
 if "tour_pending_nav" in st.session_state:
     pending = st.session_state.pop("tour_pending_nav")
     if pending in NAV_KEYS:
-        st.session_state["nav_page"] = pending
+        set_active_page(pending)
+
+current_page_key = st.session_state.get("nav_page", default_key)
+current_meta = SIDEBAR_PAGE_LOOKUP.get(current_page_key, {})
+default_category = current_meta.get("category")
+if "nav_category" not in st.session_state:
+    if default_category:
+        st.session_state["nav_category"] = default_category
+    elif used_category_keys:
+        st.session_state["nav_category"] = used_category_keys[0]
+
+category_options = used_category_keys or list(SIDEBAR_CATEGORY_STYLES.keys())
+category_label_lookup = {
+    key: SIDEBAR_CATEGORY_STYLES.get(key, {}).get("label", key)
+    for key in category_options
+}
+
+if category_options:
+    selected_category = st.sidebar.radio(
+        "機能カテゴリ",
+        category_options,
+        key="nav_category",
+        format_func=lambda key: category_label_lookup.get(key, key),
+    )
+else:
+    selected_category = st.session_state.get("nav_category", "")
+
+category_info = SIDEBAR_CATEGORY_STYLES.get(selected_category, {})
+if category_info.get("description"):
+    st.sidebar.caption(category_info["description"])
+
+category_pages = [
+    page_meta for page_meta in SIDEBAR_PAGES if page_meta["category"] == selected_category
+]
+if not category_pages:
+    category_pages = SIDEBAR_PAGES
+
+category_page_keys = [meta["key"] for meta in category_pages]
+if category_page_keys and st.session_state.get("nav_page") not in category_page_keys:
+    set_active_page(category_page_keys[0])
 
 page_key = st.sidebar.radio(
     "利用する機能を選択",
-    NAV_KEYS,
+    category_page_keys if category_page_keys else NAV_KEYS,
     key="nav_page",
     format_func=lambda key: NAV_TITLE_LOOKUP.get(key, key),
 )
 page = page_lookup[page_key]
+page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key, {})
+current_category = page_meta.get("category")
+if current_category and st.session_state.get("nav_category") != current_category:
+    st.session_state["nav_category"] = current_category
+if page_meta.get("tagline"):
+    st.sidebar.caption(page_meta["tagline"])
 
 nav_script_payload = json.dumps(nav_client_data, ensure_ascii=False)
 nav_script_template = """
@@ -1961,7 +2173,13 @@ const NAV_DATA = {payload};
     const apply = () => {
         const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
         if (!sidebar) return false;
-        const radioGroup = sidebar.querySelector('div[data-baseweb="radio"]');
+        const radioGroups = Array.from(sidebar.querySelectorAll('div[data-baseweb="radio"]'));
+        if (!radioGroups.length) return false;
+        const navKeys = new Set(NAV_DATA.map((item) => item.key));
+        const radioGroup = radioGroups.find((group) => {
+            const inputs = Array.from(group.querySelectorAll('input[type="radio"]'));
+            return inputs.some((input) => navKeys.has(input.value));
+        });
         if (!radioGroup) return false;
         const labels = Array.from(radioGroup.querySelectorAll('label'));
         if (!labels.length) return false;
@@ -2212,6 +2430,14 @@ render_app_hero()
 render_tour_banner()
 
 render_step_guide(page_key)
+
+active_category = (
+    st.session_state.get("nav_category")
+    or page_meta.get("category")
+    or ""
+)
+render_breadcrumbs(active_category, page_key)
+render_quick_nav_tabs(page_key)
 
 if st.session_state.get("sample_data_notice"):
     st.success("サンプルデータを読み込みました。ダッシュボードからすぐに分析を確認できます。")
