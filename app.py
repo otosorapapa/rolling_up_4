@@ -3,6 +3,7 @@ import io
 import json
 import math
 import textwrap
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
 
@@ -2119,6 +2120,197 @@ st.markdown(
       text-align:center;
       line-height:1.3;
     }
+    .mck-import-stepper{
+      display:flex;
+      flex-direction:column;
+      gap:0.75rem;
+      margin:0 0 1.5rem;
+    }
+    .mck-import-stepper__item{
+      display:flex;
+      gap:1rem;
+      align-items:flex-start;
+      padding:0.85rem 1rem;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:var(--panel);
+      box-shadow:0 12px 26px rgba(11,44,74,0.12);
+      position:relative;
+      transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+    }
+    .mck-import-stepper__item[data-status="current"]{
+      border-color:rgba(79,154,184,0.6);
+      box-shadow:0 18px 36px rgba(79,154,184,0.22);
+      transform:translateY(-2px);
+    }
+    .mck-import-stepper__item[data-status="complete"]{
+      border-color:rgba(18,58,95,0.4);
+    }
+    .mck-import-stepper__status{
+      width:54px;
+      height:54px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:1.45rem;
+      font-weight:700;
+      color:#ffffff;
+      background:#dbe8f5;
+      box-shadow:0 10px 20px rgba(15,60,105,0.12);
+      flex-shrink:0;
+    }
+    .mck-import-stepper__status[data-status="complete"]{
+      background:#2d6f8e;
+    }
+    .mck-import-stepper__status[data-status="current"]{
+      background:#4f9ab8;
+    }
+    .mck-import-stepper__status[data-status="upcoming"]{
+      background:#dbe8f5;
+      color:#123a5f;
+    }
+    .mck-import-stepper__content{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:0.35rem;
+    }
+    .mck-import-stepper__header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:0.75rem;
+    }
+    .mck-import-stepper__title{
+      font-weight:700;
+      color:var(--accent-strong);
+      font-size:1.05rem;
+      line-height:1.25;
+    }
+    .mck-import-stepper__title .en{
+      display:block;
+      font-weight:600;
+      font-size:0.82rem;
+      color:var(--muted);
+      letter-spacing:0.04em;
+    }
+    .mck-import-stepper__state{
+      font-size:0.78rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      padding:0.3rem 0.6rem;
+      border-radius:999px;
+      border:1px solid transparent;
+      color:#ffffff;
+      background:#2d6f8e;
+      align-self:flex-start;
+    }
+    .mck-import-stepper__state[data-status="current"]{
+      background:#4f9ab8;
+    }
+    .mck-import-stepper__state[data-status="upcoming"]{
+      background:#dbe8f5;
+      color:#123a5f;
+      border-color:rgba(18,58,95,0.18);
+    }
+    .mck-import-stepper__desc{
+      color:var(--muted);
+      font-size:0.9rem;
+      line-height:1.55;
+    }
+    .mck-import-stepper__desc .en{
+      display:block;
+      font-size:0.82rem;
+      color:var(--muted);
+    }
+    .mck-import-section{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:1.1rem 1.25rem;
+      margin-bottom:1.2rem;
+      box-shadow:0 16px 32px rgba(11,44,74,0.1);
+    }
+    .mck-import-section__header{
+      display:flex;
+      align-items:center;
+      gap:0.75rem;
+      margin-bottom:0.6rem;
+    }
+    .mck-import-section__badge{
+      width:38px;
+      height:38px;
+      border-radius:50%;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      font-size:0.95rem;
+      color:#ffffff;
+      background:#123a5f;
+      box-shadow:0 10px 20px rgba(18,58,95,0.2);
+    }
+    .mck-import-section__icon{
+      width:44px;
+      height:44px;
+      border-radius:50%;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(79,154,184,0.16);
+      font-size:1.4rem;
+      color:var(--accent-strong);
+    }
+    .mck-import-section__titles{
+      display:flex;
+      flex-direction:column;
+      gap:0.1rem;
+    }
+    .mck-import-section__titles .jp{
+      font-weight:700;
+      font-size:1.1rem;
+      color:var(--accent-strong);
+    }
+    .mck-import-section__titles .en{
+      font-size:0.85rem;
+      color:var(--muted);
+      letter-spacing:0.04em;
+    }
+    .mck-import-section__body{
+      display:flex;
+      flex-direction:column;
+      gap:0.7rem;
+    }
+    .mck-import-section__hint{
+      display:block;
+      font-size:0.8rem;
+      color:var(--muted);
+      margin-top:0.2rem;
+    }
+    .mck-import-section__note{
+      display:block;
+      font-size:0.78rem;
+      color:var(--muted);
+      margin-left:1rem;
+    }
+    .mck-import-section--template .mck-import-section__badge{
+      background:#123a5f;
+    }
+    .mck-import-section--metrics .mck-import-section__badge{
+      background:#2d6f8e;
+    }
+    .mck-import-section--upload .mck-import-section__badge{
+      background:#4f9ab8;
+    }
+    .mck-import-section--quality .mck-import-section__badge{
+      background:#71b7d4;
+      color:#0b2f4c;
+    }
+    .mck-import-section--quality{
+      border-color:rgba(79,154,184,0.32);
+    }
     .mck-breadcrumb{
       display:flex;
       align-items:center;
@@ -2788,6 +2980,296 @@ def render_sample_data_hub() -> None:
                 st.error(f"デモデータの準備に失敗しました: {exc}")
 
 
+@contextmanager
+def import_section(
+    number: int,
+    title_ja: str,
+    title_en: str,
+    icon: str,
+    *,
+    accent: str = "template",
+):
+    """Render a structured panel with numbered headers for the import workflow."""
+
+    accent_class = f" mck-import-section--{accent}" if accent else ""
+    outer = st.container()
+    with outer:
+        st.markdown(
+            """
+            <section class="mck-import-section{accent_class}" data-section="{number:02d}">
+              <header class="mck-import-section__header">
+                <span class="mck-import-section__badge">{number:02d}</span>
+                <span class="mck-import-section__icon" aria-hidden="true">{icon}</span>
+                <div class="mck-import-section__titles">
+                  <span class="jp">{title_ja}</span>
+                  <span class="en">{title_en}</span>
+                </div>
+              </header>
+              <div class="mck-import-section__body">
+            """.format(
+                accent_class=accent_class,
+                number=number,
+                icon=html.escape(icon),
+                title_ja=html.escape(title_ja),
+                title_en=html.escape(title_en),
+            ),
+            unsafe_allow_html=True,
+        )
+        inner = st.container()
+        with inner:
+            yield
+        st.markdown("</div></section>", unsafe_allow_html=True)
+
+
+def render_import_stepper() -> None:
+    """Show progress for the import workflow with bilingual labels."""
+
+    template_key = get_active_template_key()
+    template_config = get_template_config(template_key)
+    template_label = template_config.get("label", template_key)
+    data_monthly = st.session_state.get("data_monthly")
+    data_year = st.session_state.get("data_year")
+    quality_summary = st.session_state.get("import_quality_summary")
+    uploaded_name = st.session_state.get("import_uploaded_file_name", "")
+    uploaded_at_raw = st.session_state.get("import_last_uploaded")
+    uploaded_at_disp = ""
+    if uploaded_at_raw:
+        try:
+            uploaded_dt = datetime.fromisoformat(uploaded_at_raw)
+            uploaded_at_disp = uploaded_dt.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            uploaded_at_disp = str(uploaded_at_raw)
+
+    def _has_rows(df: Optional[pd.DataFrame]) -> bool:
+        return bool(df is not None and not getattr(df, "empty", False))
+
+    if not quality_summary and _has_rows(data_monthly):
+        try:
+            derived = {
+                "missing": int(
+                    data_monthly["is_missing"].sum()
+                    if "is_missing" in data_monthly.columns
+                    else 0
+                ),
+                "total": int(len(data_monthly)),
+                "sku_count": int(
+                    data_monthly["product_code"].nunique()
+                    if "product_code" in data_monthly.columns
+                    else 0
+                ),
+                "period_start": str(data_monthly["month"].min()),
+                "period_end": str(data_monthly["month"].max()),
+            }
+            quality_summary = derived
+        except Exception:
+            quality_summary = None
+
+    template_ready = bool(template_label)
+    upload_ready = _has_rows(data_monthly)
+    quality_ready = bool(quality_summary) or _has_rows(data_year)
+    report_ready = _has_rows(data_year)
+    report_done = bool(st.session_state.get("import_report_completed"))
+
+    status_template = "complete" if template_ready else "current"
+    status_upload = (
+        "complete"
+        if upload_ready
+        else ("current" if status_template == "complete" else "upcoming")
+    )
+    status_quality = (
+        "complete"
+        if quality_ready
+        else ("current" if status_upload == "complete" else "upcoming")
+    )
+    if report_ready:
+        status_report = "complete" if report_done else (
+            "current" if status_quality == "complete" else "upcoming"
+        )
+    else:
+        status_report = "upcoming"
+
+    STATUS_LABELS = {
+        "complete": "完了 / Done",
+        "current": "進行中 / In Progress",
+        "upcoming": "未着手 / Pending",
+    }
+
+    steps: List[Dict[str, object]] = []
+
+    step_template_desc = [
+        (
+            "業種テンプレートを選ぶと推奨指標が自動反映されます。",
+            "Selecting an industry template preloads recommended metrics.",
+        )
+    ]
+    if template_label:
+        step_template_desc.append(
+            (
+                f"適用中テンプレート: {template_label}",
+                f"Active template: {template_label}",
+            )
+        )
+    steps.append(
+        {
+            "key": "template",
+            "icon": "🧩",
+            "label": "テンプレート選択",
+            "label_en": "Template Selection",
+            "status": status_template,
+            "desc": step_template_desc,
+        }
+    )
+
+    step_upload_desc = [
+        (
+            "CSV/Excelファイルをドラッグ＆ドロップしてください。",
+            "Drag & drop CSV or Excel files to begin the import.",
+        ),
+        (
+            "月度列は YYYY-MM 形式が推奨です。",
+            "Month columns in YYYY-MM format are recommended.",
+        ),
+    ]
+    if uploaded_name:
+        step_upload_desc.append(
+            (
+                f"最新アップロード: {uploaded_name}",
+                f"Latest upload: {uploaded_name}",
+            )
+        )
+    if uploaded_at_disp:
+        step_upload_desc.append(
+            (
+                f"更新日時: {uploaded_at_disp}",
+                f"Updated at: {uploaded_at_disp}",
+            )
+        )
+    steps.append(
+        {
+            "key": "upload",
+            "icon": "📤",
+            "label": "データアップロード",
+            "label_en": "Data Upload",
+            "status": status_upload,
+            "desc": step_upload_desc,
+        }
+    )
+
+    if quality_summary:
+        missing = quality_summary.get("missing", 0)
+        total = quality_summary.get("total", 0)
+        sku_cnt = quality_summary.get("sku_count", 0)
+        period_start = quality_summary.get("period_start", "—")
+        period_end = quality_summary.get("period_end", "—")
+        quality_desc = [
+            (
+                f"欠測セル: {missing:,} / {total:,}",
+                f"Missing cells: {missing:,} / {total:,}",
+            ),
+            (
+                f"SKU数: {sku_cnt:,}",
+                f"SKU count: {sku_cnt:,}",
+            ),
+            (
+                f"期間: {period_start} 〜 {period_end}",
+                f"Coverage: {period_start} to {period_end}",
+            ),
+        ]
+    else:
+        quality_desc = [
+            (
+                "欠測や型の揺れをチェックし、エラーを先に解消します。",
+                "Review missing values and format issues before continuing.",
+            )
+        ]
+    steps.append(
+        {
+            "key": "quality",
+            "icon": "🔍",
+            "label": "データチェック",
+            "label_en": "Data Quality Review",
+            "status": status_quality,
+            "desc": quality_desc,
+        }
+    )
+
+    step_report_desc = [
+        (
+            "ダッシュボードとランキングで結果を確認しましょう。",
+            "Open dashboards and rankings to explore the results.",
+        ),
+        (
+            "PDF/CSV出力でレポートを共有できます。",
+            "Share insights with PDF or CSV exports.",
+        ),
+    ]
+    if report_done:
+        step_report_desc.append(
+            (
+                "レポート出力を完了しました。",
+                "Report export completed.",
+            )
+        )
+    steps.append(
+        {
+            "key": "report",
+            "icon": "📈",
+            "label": "レポート出力",
+            "label_en": "Report Output",
+            "status": status_report,
+            "desc": step_report_desc,
+        }
+    )
+
+    items_html: List[str] = []
+    for step in steps:
+        status = step.get("status", "upcoming")
+        aria_current = " aria-current=\"step\"" if status == "current" else ""
+        state_label = STATUS_LABELS.get(status, "")
+        desc_lines = step.get("desc", []) or []
+        desc_html_parts: List[str] = []
+        for jp, en in desc_lines:
+            desc_html_parts.append(
+                f"{html.escape(str(jp))}<span class='en'>{html.escape(str(en))}</span>"
+            )
+        desc_html = "<br>".join(desc_html_parts) if desc_html_parts else "&nbsp;"
+        items_html.append(
+            """
+            <div class="mck-import-stepper__item" data-status="{status}" role="listitem"{aria_current}>
+              <div class="mck-import-stepper__status" data-status="{status}" aria-hidden="true">{icon}</div>
+              <div class="mck-import-stepper__content">
+                <div class="mck-import-stepper__header">
+                  <div class="mck-import-stepper__title">
+                    <span class="jp">{label}</span>
+                    <span class="en">{label_en}</span>
+                  </div>
+                  <span class="mck-import-stepper__state" data-status="{status}">{state}</span>
+                </div>
+                <p class="mck-import-stepper__desc">{desc}</p>
+              </div>
+            </div>
+            """.format(
+                status=html.escape(str(status)),
+                aria_current=aria_current,
+                icon=html.escape(str(step.get("icon", ""))),
+                label=html.escape(str(step.get("label", ""))),
+                label_en=html.escape(str(step.get("label_en", ""))),
+                state=html.escape(state_label),
+                desc=desc_html,
+            )
+        )
+
+    if items_html:
+        st.markdown(
+            """
+            <div class="mck-import-stepper" role="list" aria-label="データ取込ステップ">
+              {items}
+            </div>
+            """.format(items="".join(items_html)),
+            unsafe_allow_html=True,
+        )
+
+
 def render_breadcrumbs(category_key: str, page_key: str) -> None:
     page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key)
     if not page_meta:
@@ -3305,14 +3787,19 @@ if (
     or st.session_state.data_monthly is None
 ):
     st.info(
-        "左メニューの「データ取込」からCSVまたはExcelファイルをアップロードしてください。"
-        "サンプルテンプレートを活用すると、初期セットアップを数分で体験できます。"
+        "左メニューの「データ取込」からCSVまたはExcelファイルをアップロードしてください。\n"
+        "Upload CSV or Excel files from the “Data Import” menu on the left.\n\n"
+        "サンプルテンプレートを活用すると、初期セットアップを数分で体験できます。\n"
+        "Use the sample template to experience the initial setup in minutes."
     )
-    with st.expander("アップロード前のチェックリスト", expanded=False):
+    with st.expander("アップロード前のチェックリスト / Pre-upload checklist", expanded=False):
         st.markdown(
-            "1. 行は商品（または費目）、列に12ヶ月以上の月度が並ぶワイド形式か確認する。\n"
-            "2. 月度の列名は `2023-01` や `2023/01/01` など日付として解釈できる形式にする。\n"
-            "3. 数値は円単位で入力し、欠損がある場合は空欄または0で埋める。"
+            "- 行は商品（または費目）単位で、列には12ヶ月以上の月度を配置してください。\n"
+            "  - Ensure each row represents an item or cost category and include at least 12 months of columns.\n"
+            "- 月度列名は `2023-01` や `2023/01/01` など日付として解釈できる形式にしてください。\n"
+            "  - Use month headers that can be parsed as dates (e.g., `2023-01`).\n"
+            "- 数値は円単位で入力し、欠損がある場合は空欄または0で埋めてください。\n"
+            "  - Provide values in JPY and fill missing months with blank cells or 0."
         )
     render_getting_started_intro()
     render_sample_data_hub()
@@ -3325,7 +3812,11 @@ if page == "データ取込":
         "データ取込", "ファイルのマッピングと品質チェックを行います。", icon="📥"
     )
 
-    template_options = [key for key in INDUSTRY_TEMPLATE_ORDER if key in INDUSTRY_TEMPLATES]
+    render_import_stepper()
+
+    template_options = [
+        key for key in INDUSTRY_TEMPLATE_ORDER if key in INDUSTRY_TEMPLATES
+    ]
     active_template = get_active_template_key()
     if active_template not in template_options:
         template_options.append(active_template)
@@ -3335,164 +3826,288 @@ if page == "データ取込":
         else 0
     )
 
-    st.markdown("#### 業種テンプレートの選択")
-    selected_template = st.selectbox(
-        "業種別テンプレート",
-        template_options,
-        index=template_index,
-        format_func=lambda key: INDUSTRY_TEMPLATES.get(key, {}).get("label", key),
-        help="業種を選ぶと推奨科目や指標、閾値が自動セットされ入力工数を削減できます。",
-    )
-    if selected_template != active_template:
-        apply_industry_template(selected_template)
-        st.success(
-            f"{INDUSTRY_TEMPLATES.get(selected_template, {}).get('label', selected_template)}"
-            " テンプレートを適用しました。閾値と推奨KPIが更新されています。"
-        )
-        active_template = selected_template
-
     template_config = get_template_config(active_template)
-    goal_text = template_config.get("goal")
-    if goal_text:
-        st.caption(goal_text)
-    else:
-        st.caption("テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目指します。")
 
-    col_fields, col_metrics = st.columns(2)
-    with col_fields:
-        st.markdown("##### 推奨科目")
-        for field in template_config.get("fields", []):
-            st.markdown(f"- {field}")
-    with col_metrics:
-        st.markdown("##### 自動セットされる指標")
-        metrics_list = template_config.get("recommended_metrics", [])
-        if metrics_list:
-            for metric in metrics_list:
-                name = metric.get("name", "指標")
-                desc = metric.get("description", "")
-                value_text = format_template_metric(metric)
-                detail = f" （{desc}）" if desc else ""
-                st.markdown(f"- **{name}**: {value_text}{detail}")
-        else:
-            st.caption("テンプレートに紐づく指標はありません。")
-
-    template_bytes = build_industry_template_csv(active_template)
-    st.download_button(
-        f"{template_config.get('label', 'テンプレート')}向けCSVテンプレートをダウンロード",
-        data=template_bytes,
-        file_name=f"{active_template}_template.csv",
-        mime="text/csv",
-        help="推奨科目と12ヶ月の月次列を含むテンプレートCSVをダウンロードします。",
-    )
-
-    st.divider()
-
-    st.markdown(
-        "**Excel(.xlsx) / CSV をアップロードしてください。** "
-        "列に `YYYY-MM`（または日付系）形式の月度が含まれている必要があります。"
-    )
-    with st.expander("CSVの列構成を確認する", expanded=False):
-        st.markdown(
-            "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように商品名と任意のコード列の後に月次列を並べてください。"
+    with import_section(
+        1, "テンプレート選択", "Template Selection", "🧩", accent="template"
+    ):
+        st.caption(
+            """業種テンプレートを選ぶと推奨科目や指標、閾値が自動セットされます。
+Select an industry template to preload recommended fields, metrics, and thresholds."""
         )
-
-    col_u1, col_u2 = st.columns([2, 1])
-    with col_u1:
-        file = st.file_uploader(
-            "ファイル選択",
-            type=["xlsx", "csv"],
-            help="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。",
-        )
-    with col_u2:
-        st.session_state.settings["missing_policy"] = st.selectbox(
-            "欠測月ポリシー",
-            options=["zero_fill", "mark_missing"],
-            format_func=lambda x: (
-                "ゼロ補完(推奨)" if x == "zero_fill" else "欠測含む窓は非計上"
+        selected_template = st.selectbox(
+            "業種別テンプレート / Industry template",
+            template_options,
+            index=template_index,
+            format_func=lambda key: INDUSTRY_TEMPLATES.get(key, {}).get(
+                "label", key
             ),
-            index=0,
-            help="欠測月がある場合の扱いを選択します。ゼロ補完は欠測を0として計算します。",
+            help="業種を選ぶと推奨科目や指標、閾値が自動セットされ入力工数を削減できます。/ Choosing an industry applies recommended KPIs and thresholds automatically.",
+        )
+        if selected_template != active_template:
+            apply_industry_template(selected_template)
+            template_label = INDUSTRY_TEMPLATES.get(selected_template, {}).get(
+                "label", selected_template
+            )
+            st.success(
+                f"""{template_label} テンプレートを適用しました。閾値と推奨KPIが更新されています。
+Applied the {template_label} template. Thresholds and KPI presets are refreshed."""
+            )
+            active_template = selected_template
+            template_config = get_template_config(active_template)
+        goal_text = template_config.get("goal")
+        if goal_text:
+            st.caption(
+                f"{goal_text}<br><span class='mck-import-section__hint'>Goal: Reduce manual setup time with predefined metrics.</span>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption(
+                """テンプレート適用で入力工数を約50％削減（30分→15分以内）することを目指します。
+Applying the template aims to cut manual setup time by about 50% (30 min → under 15 min)."""
+            )
+
+    with import_section(
+        2, "推奨項目と指標", "Recommended Fields & Metrics", "🧠", accent="metrics"
+    ):
+        st.caption(
+            """推奨項目・指標をチェックリストとして活用し、入力漏れを防ぎましょう。
+Use the recommended fields and metrics as a checklist to prevent omissions."""
+        )
+        fields = template_config.get("fields", [])
+        metrics_list = template_config.get("recommended_metrics", [])
+        col_fields, col_metrics = st.columns(2)
+        with col_fields:
+            st.markdown("**推奨項目 / Recommended columns**")
+            if fields:
+                for field in fields:
+                    field_html = html.escape(str(field))
+                    st.markdown(
+                        f"- {field_html}<br><span class='mck-import-section__hint'>Suggested column name / Recommended field</span>",
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.caption(
+                    """テンプレートに推奨項目は設定されていません。
+No additional recommended columns in this template."""
+                )
+        with col_metrics:
+            st.markdown("**自動計算される指標 / Auto-calculated metrics**")
+            if metrics_list:
+                for metric in metrics_list:
+                    name = metric.get("name", "指標")
+                    value_text = format_template_metric(metric)
+                    desc = metric.get("description", "")
+                    name_html = html.escape(str(name))
+                    value_html = html.escape(str(value_text))
+                    desc_html = html.escape(str(desc)) if desc else ""
+                    line_html = f"- <strong>{name_html}</strong>: {value_html}"
+                    if desc_html:
+                        line_html += f" （{desc_html}）"
+                    line_html += (
+                        "<br><span class='mck-import-section__hint'>"
+                        f"Auto metric: {name_html} ({value_html})."
+                        "</span>"
+                    )
+                    if desc_html:
+                        line_html += (
+                            f"<span class='mck-import-section__note'>Detail (JP): {desc_html}</span>"
+                        )
+                    st.markdown(line_html, unsafe_allow_html=True)
+            else:
+                st.caption(
+                    """テンプレートに紐づく指標はありません。
+No auto-calculated metrics are linked to this template."""
+                )
+        template_bytes = build_industry_template_csv(active_template)
+        st.download_button(
+            "CSVテンプレートをダウンロード / Download CSV template",
+            data=template_bytes,
+            file_name=f"{active_template}_template.csv",
+            mime="text/csv",
+            help="推奨科目と12ヶ月の月度列を含むテンプレートをダウンロードします。/ Download a starter CSV with recommended columns and 12 month headers.",
         )
 
-    if file is not None:
-        try:
-            with st.spinner("ファイルを読み込んでいます…"):
-                if file.name.lower().endswith(".csv"):
-                    df_raw = pd.read_csv(file)
-                else:
-                    df_raw = pd.read_excel(file, engine="openpyxl")
-        except Exception as e:
-            st.error(f"読込エラー: {e}")
-            st.stop()
+    missing_policy_options = ["zero_fill", "mark_missing"]
+    current_policy = st.session_state.settings.get("missing_policy", "zero_fill")
+    policy_index = (
+        missing_policy_options.index(current_policy)
+        if current_policy in missing_policy_options
+        else 0
+    )
 
-        with st.expander("アップロードプレビュー（先頭100行）", expanded=True):
-            st.dataframe(df_raw.head(100), use_container_width=True)
-
-        cols = df_raw.columns.tolist()
-        product_name_col = st.selectbox(
-            "商品名列の選択",
-            options=cols,
-            index=0,
-            help="可視化に使用する名称列を選択します。仕入データや経費データでも名称列を指定してください。",
-        )
-        product_code_col = st.selectbox(
-            "商品コード列の選択（任意）",
-            options=["<なし>"] + cols,
-            index=0,
-            help="SKUコードなど識別子の列がある場合は選択します。ない場合は〈なし〉のままで問題ありません。",
-        )
-        code_col = None if product_code_col == "<なし>" else product_code_col
-
-        st.markdown("<div class='mobile-sticky-actions'>", unsafe_allow_html=True)
-        convert_clicked = st.button(
-            "変換＆取込",
-            type="primary",
-            help="年計・YoY・Δを自動計算し、ダッシュボード各ページで利用できる形式に整えます。",
-            use_container_width=True,
-        )
+    with import_section(
+        3, "ファイルアップロード", "Data Upload", "📤", accent="upload"
+    ):
         st.markdown(
-            "<p class='mobile-action-caption'>テンプレートの推奨科目を使うと入力から取り込みまでを15分以内で完了できます。</p>",
+            "**Excel(.xlsx) / CSV をアップロードしてください。**<br>"
+            "<span class='mck-import-section__hint'>Upload Excel (.xlsx) or CSV files that include monthly sales, cost, or inventory data.</span>",
             unsafe_allow_html=True,
         )
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(
+            "列に `YYYY-MM` 形式の月度を含め、数値は半角で記録してください。<br>"
+            "<span class='mck-import-section__hint'>Include month columns in YYYY-MM format and provide numeric values in standard digits.</span>",
+            unsafe_allow_html=True,
+        )
+        with st.expander("CSVの列構成を確認する / Review column layout", expanded=False):
+            st.markdown(
+                "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように名称・コード列の後に月次列を並べてください。<br>"
+                "Example: place month columns after name/code columns such as `Product Name, Product Code, 2022-01, 2022-02, ...`.",
+                unsafe_allow_html=True,
+            )
+        col_u1, col_u2 = st.columns([2, 1])
+        with col_u1:
+            file = st.file_uploader(
+                "ファイル選択 / Choose file",
+                type=["xlsx", "csv"],
+                help="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。/ Select the monthly dataset to import.",
+            )
+        with col_u2:
+            missing_policy = st.selectbox(
+                "欠測月ポリシー / Missing month policy",
+                options=missing_policy_options,
+                index=policy_index,
+                format_func=lambda x: "ゼロ補完(推奨) / Fill missing months with 0"
+                if x == "zero_fill"
+                else "欠測を保持 / Keep missing months as blank",
+                help="欠測月の扱いを選択します。/ Choose how missing months should be treated during calculations.",
+            )
+            st.session_state.settings["missing_policy"] = missing_policy
 
-        if convert_clicked:
+        if file is not None:
             try:
-                with st.spinner("年計データを計算中…"):
-                    long_df, year_df = ingest_wide_dataframe(
-                        df_raw,
-                        product_name_col=product_name_col,
-                        product_code_col=code_col,
+                with st.spinner("ファイルを読み込んでいます… / Loading file..."):
+                    if file.name.lower().endswith(".csv"):
+                        df_raw = pd.read_csv(file)
+                    else:
+                        df_raw = pd.read_excel(file, engine="openpyxl")
+            except Exception as e:
+                st.error(
+                    f"読込エラー: {e}\nFailed to load the file. Please check the format and encoding."
+                )
+                st.stop()
+
+            with st.expander(
+                "アップロードプレビュー（先頭100行） / Preview first 100 rows",
+                expanded=True,
+            ):
+                st.dataframe(df_raw.head(100), use_container_width=True)
+
+            cols = df_raw.columns.tolist()
+            product_name_col = st.selectbox(
+                "商品名列の選択 / Select product name column",
+                options=cols,
+                index=0,
+                help="可視化に使用する名称列を選択します。/ Choose the column to display as product names.",
+            )
+            product_code_col = st.selectbox(
+                "商品コード列の選択（任意） / Select product code column (optional)",
+                options=["<なし>"] + cols,
+                index=0,
+                help="SKUコードなど識別子の列がある場合に選択します。/ Select an identifier column if available.",
+            )
+            code_col = None if product_code_col == "<なし>" else product_code_col
+
+            st.markdown("<div class='mobile-sticky-actions'>", unsafe_allow_html=True)
+            convert_clicked = st.button(
+                "変換＆取込 / Convert & ingest",
+                type="primary",
+                help="年計・YoY・Δを自動計算し、ダッシュボード各ページで利用できる形式に整えます。/ Convert the file into yearly KPIs for the dashboard.",
+                use_container_width=True,
+            )
+            st.markdown(
+                "<p class='mobile-action-caption'>テンプレートの推奨科目を使うと入力から取り込みまでを15分以内で完了できます。<br>"
+                "Using the recommended template helps you finish setup within 15 minutes.</p>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            if convert_clicked:
+                try:
+                    with st.spinner("年計データを計算中… / Calculating yearly metrics..."):
+                        long_df, year_df = ingest_wide_dataframe(
+                            df_raw,
+                            product_name_col=product_name_col,
+                            product_code_col=code_col,
+                        )
+
+                    st.success(
+                        """取込完了。ダッシュボードへ移動して可視化を確認してください。
+Import completed. Open the dashboard pages to review the visuals."""
                     )
+                    quality_summary = {
+                        "missing": int(long_df["is_missing"].sum()),
+                        "total": int(len(long_df)),
+                        "sku_count": int(long_df["product_code"].nunique()),
+                        "period_start": str(long_df["month"].min()),
+                        "period_end": str(long_df["month"].max()),
+                    }
+                    st.session_state.import_quality_summary = quality_summary
+                    st.session_state.import_uploaded_file_name = file.name
+                    st.session_state.import_last_uploaded = datetime.now().isoformat()
+                    st.session_state.import_report_completed = False
+                except Exception as e:
+                    st.exception(e)
 
-                st.success(
-                    "取込完了。ダッシュボードへ移動して可視化を確認してください。"
-                )
+    quality_summary = st.session_state.get("import_quality_summary")
+    data_year = st.session_state.get("data_year")
 
-                st.subheader("品質チェック（欠測月/非数値/重複）")
-                # 欠測月
-                miss_rate = (long_df["is_missing"].sum(), len(long_df))
-                st.write(f"- 欠測セル数: {miss_rate[0]:,} / {miss_rate[1]:,}")
-                # 月レンジ
-                st.write(
-                    f"- データ期間: {long_df['month'].min()} 〜 {long_df['month'].max()}"
-                )
-                # SKU数
-                st.write(f"- SKU数: {long_df['product_code'].nunique():,}")
-                st.write(f"- レコード数: {len(long_df):,}")
-
-                st.download_button(
-                    "年計テーブルをCSVでダウンロード",
-                    data=st.session_state.data_year.to_csv(index=False).encode(
-                        "utf-8-sig"
-                    ),
+    with import_section(
+        4, "データチェック", "Data Quality Review", "🔍", accent="quality"
+    ):
+        if quality_summary:
+            miss = quality_summary.get("missing", 0)
+            total = quality_summary.get("total", 0)
+            sku_count = quality_summary.get("sku_count", 0)
+            period_start = quality_summary.get("period_start", "—")
+            period_end = quality_summary.get("period_end", "—")
+            st.markdown(
+                f"- **欠測セル数**: {miss:,} / {total:,}<br>"
+                f"<span class='mck-import-section__hint'>Missing cells: {miss:,} / {total:,}</span>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"- **SKU数**: {sku_count:,}<br>"
+                f"<span class='mck-import-section__hint'>SKU count: {sku_count:,}</span>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"- **データ期間**: {period_start} 〜 {period_end}<br>"
+                f"<span class='mck-import-section__hint'>Coverage: {period_start} to {period_end}</span>",
+                unsafe_allow_html=True,
+            )
+            if data_year is not None and not data_year.empty:
+                download_clicked = st.download_button(
+                    "年計テーブルをCSVでダウンロード / Download yearly table (CSV)",
+                    data=data_year.to_csv(index=False).encode("utf-8-sig"),
                     file_name="year_rolling.csv",
                     mime="text/csv",
-                    help="年計やYoYなどの計算結果をCSVで保存し、他システムと共有できます。",
+                    help="年計やYoYなどの計算結果をCSVで保存し、他システムと共有できます。/ Export yearly KPIs as CSV for sharing.",
                 )
-            except Exception as e:
-                st.exception(e)
-
+                if download_clicked:
+                    st.session_state.import_report_completed = True
+            st.caption(
+                """ダッシュボードやランキングに移動して、AIサマリーやPDF出力を活用しましょう。
+Move to the dashboard or ranking pages to use AI summaries and PDF exports."""
+            )
+        elif data_year is not None and not data_year.empty:
+            download_clicked = st.download_button(
+                "年計テーブルをCSVでダウンロード / Download yearly table (CSV)",
+                data=data_year.to_csv(index=False).encode("utf-8-sig"),
+                file_name="year_rolling.csv",
+                mime="text/csv",
+            )
+            if download_clicked:
+                st.session_state.import_report_completed = True
+            st.caption(
+                """現在のデータセットに基づく品質サマリーを取得しています。
+Quality metrics are available for the current dataset."""
+            )
+        else:
+            st.caption(
+                """ファイルをアップロードすると欠測状況や期間のサマリーが表示されます。
+Upload a file to view missing values and coverage summaries here."""
+            )
 # 2) ダッシュボード
 elif page == "ダッシュボード":
     require_data()
