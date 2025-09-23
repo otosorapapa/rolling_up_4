@@ -778,20 +778,20 @@ def render_tour_banner() -> None:
                 st.session_state.tour_step_index = new_idx
                 st.session_state.tour_pending_nav = TOUR_STEPS[new_idx]["nav_key"]
                 st.session_state.tour_completed = False
-                st.experimental_rerun()
+                st.rerun()
 
             if next_clicked and idx < total - 1:
                 new_idx = idx + 1
                 st.session_state.tour_step_index = new_idx
                 st.session_state.tour_pending_nav = TOUR_STEPS[new_idx]["nav_key"]
                 st.session_state.tour_completed = False
-                st.experimental_rerun()
+                st.rerun()
 
             if finish_clicked:
                 st.session_state.tour_active = False
                 st.session_state.tour_completed = True
                 st.session_state.pop("tour_pending_nav", None)
-                st.experimental_rerun()
+                st.rerun()
         else:
             completed = st.session_state.get("tour_completed", False)
             last_step = TOUR_STEPS[idx] if 0 <= idx < total else None
@@ -874,7 +874,7 @@ def render_tour_banner() -> None:
                 st.session_state.tour_completed = False
                 if last_step and last_step.get("nav_key") in NAV_KEYS:
                     st.session_state.tour_pending_nav = last_step["nav_key"]
-                st.experimental_rerun()
+                st.rerun()
 
             if restart_clicked:
                 st.session_state.tour_active = True
@@ -882,7 +882,7 @@ def render_tour_banner() -> None:
                 st.session_state.tour_step_index = 0
                 if TOUR_STEPS:
                     st.session_state.tour_pending_nav = TOUR_STEPS[0]["nav_key"]
-                st.experimental_rerun()
+                st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1727,7 +1727,7 @@ def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False)
     if NAV_CATEGORY_STATE_KEY not in st.session_state:
         st.session_state[NAV_CATEGORY_STATE_KEY] = category
     if rerun_on_lock:
-        st.experimental_rerun()
+        st.rerun()
 
 
 def set_active_page(page_key: str) -> None:
@@ -2106,7 +2106,7 @@ def render_quick_nav_tabs(active_page_key: str) -> None:
                 )
                 if clicked:
                     set_active_page(page_key)
-                    st.experimental_rerun()
+                    st.rerun()
                 caption_parts: List[str] = []
                 tagline = page_meta.get("tagline")
                 if tagline:
@@ -2502,7 +2502,7 @@ if (
         st.session_state.data_monthly = long_df
         st.session_state.data_year = year_df
         st.session_state.sample_data_notice = True
-        st.experimental_rerun()
+        st.rerun()
 
 # ---------------- Pages ----------------
 
@@ -3456,7 +3456,7 @@ elif page == "SKU詳細":
             if st.button("閉じる", key="close_expand_modal"):
                 st.session_state.setdefault("ui", {})["expand_mode"] = False
                 st.session_state["sku_expand_mode"] = False
-                st.experimental_rerun()
+                st.rerun()
 
 # 5) 異常検知
 elif page == "異常検知":
