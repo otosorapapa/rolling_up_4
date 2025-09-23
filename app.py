@@ -2585,8 +2585,11 @@ def render_step_guide(active_nav_key: str) -> None:
         data_active = "true" if nav_key == active_nav_key else "false"
         aria_current_attr = ' aria-current="step"' if nav_key == active_nav_key else ""
 
+        category_key = html.escape(nav_meta.get("category", ""), quote=True)
+
         item_html = (
             f'<div class="tour-step-guide__item has-tooltip" data-step="{nav_key}" '
+            f'data-category="{category_key}" '
             f'data-active="{data_active}" data-tooltip="{tooltip_attr}" title="{title_attr}" '
             f'tabindex="0" role="listitem" aria-label="{aria_label_attr}"{aria_current_attr}>'
             f'<span class="tour-step-guide__icon" aria-hidden="true">{icon_html}</span>'
@@ -2617,6 +2620,20 @@ def render_step_guide(active_nav_key: str) -> None:
                 if (!label) return null;
                 return label.querySelector('input[type="radio"]');
             };
+            const findCategoryInput = (categoryKey) => {
+                if (!categoryKey) return null;
+                const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) return null;
+                const label = sidebar.querySelector('label[data-category-key="' + categoryKey + '"]');
+                if (label) {
+                    const input = label.querySelector('input[type="radio"]');
+                    if (input) {
+                        return input;
+                    }
+                }
+                const radios = Array.from(sidebar.querySelectorAll('input[type="radio"]'));
+                return radios.find((input) => input.value === categoryKey) || null;
+            };
             const bind = (attempt = 0) => {
                 const items = Array.from(doc.querySelectorAll('.tour-step-guide__item[data-step]'));
                 if (!items.length) {
@@ -2630,8 +2647,20 @@ def render_step_guide(active_nav_key: str) -> None:
                     item.dataset.navBound = '1';
                     const activate = () => {
                         const navKey = item.dataset.step;
+                        const categoryKey = item.dataset.category;
                         const input = findSidebarInput(navKey);
-                        if (input) {
+                        const categoryInput = findCategoryInput(categoryKey);
+                        if (categoryInput && !categoryInput.checked) {
+                            categoryInput.click();
+                            setTimeout(() => {
+                                const refreshed = findSidebarInput(navKey);
+                                if (refreshed && !refreshed.checked) {
+                                    refreshed.click();
+                                }
+                            }, 80);
+                            return;
+                        }
+                        if (input && !input.checked) {
                             input.click();
                         }
                     };
@@ -2954,6 +2983,18 @@ const NAV_DATA = {payload};
         const radioGroups = Array.from(sidebar.querySelectorAll('div[data-baseweb="radio"]'));
         if (!radioGroups.length) return false;
         const navKeys = new Set(NAV_DATA.map((item) => item.key));
+        const categoryMeta = {};
+        NAV_DATA.forEach((item) => {
+            if (!item.category) return;
+            if (!categoryMeta[item.category]) {
+                categoryMeta[item.category] = {
+                    label: item.category_label || item.category,
+                };
+            } else if (!categoryMeta[item.category].label && item.category_label) {
+                categoryMeta[item.category].label = item.category_label;
+            }
+        });
+        const categoryKeys = Object.keys(categoryMeta);
         const radioGroup = radioGroups.find((group) => {
             const inputs = Array.from(group.querySelectorAll('input[type="radio"]'));
             return inputs.some((input) => navKeys.has(input.value));
@@ -3038,6 +3079,28 @@ const NAV_DATA = {payload};
                 input.dataset.navEnhanced = 'true';
             }
         });
+        if (categoryKeys.length) {
+            const categoryKeySet = new Set(categoryKeys);
+            const categoryGroup = radioGroups.find((group) => {
+                const inputs = Array.from(group.querySelectorAll('input[type="radio"]'));
+                return inputs.length && inputs.every((input) => categoryKeySet.has(input.value));
+            });
+            if (categoryGroup) {
+                const categoryLabels = Array.from(categoryGroup.querySelectorAll('label'));
+                categoryLabels.forEach((label) => {
+                    const input = label.querySelector('input[type="radio"]');
+                    if (!input) return;
+                    const value = input.value;
+                    if (!categoryKeySet.has(value)) return;
+                    label.dataset.categoryKey = value;
+                    const meta = categoryMeta[value];
+                    if (meta && meta.label) {
+                        label.setAttribute('title', meta.label);
+                        input.setAttribute('aria-label', meta.label);
+                    }
+                });
+            }
+        }
         updateActiveState();
         return true;
     };
