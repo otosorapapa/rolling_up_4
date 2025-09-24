@@ -6,7 +6,7 @@ import textwrap
 from string import Template
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple, Iterable
+from typing import Optional, List, Dict, Tuple, Iterable, Callable
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -219,6 +219,94 @@ METRIC_EXPLANATIONS: Dict[str, Dict[str, str]] = {
 }
 
 
+MESSAGE_PRESETS: Dict[str, Dict[str, object]] = {
+    "empty": {
+        "component": "warning",
+        "text": "データがありません。条件を変更して再試行してください。",
+        "action": {"kind": "modify", "label": "条件を変更"},
+    },
+    "loading": {
+        "component": "spinner",
+        "text": "データを取得しています…",
+    },
+    "error": {
+        "component": "error",
+        "text": "データ取得に失敗しました。ネットワーク接続を確認してください。",
+        "action": {"kind": "retry", "label": "再試行"},
+    },
+    "completed": {
+        "component": "success",
+        "text": "CSVをダウンロードしました。",
+    },
+}
+
+SPINNER_MESSAGE = str(MESSAGE_PRESETS["loading"]["text"])
+
+
+@contextmanager
+def loading_message(detail: Optional[str] = None):
+    """Display the standard loading spinner message with optional detail."""
+
+    base = SPINNER_MESSAGE
+    text = base if not detail else f"{base}\n{detail}".strip()
+    with st.spinner(text):
+        yield
+
+
+def render_status_message(
+    state: str,
+    *,
+    key: Optional[str] = None,
+    on_retry: Optional[Callable[[], None]] = None,
+    on_modify: Optional[Callable[[], None]] = None,
+    guide: Optional[str] = None,
+    disable_actions: bool = False,
+) -> None:
+    """Render status feedback based on the shared message dictionary."""
+
+    config = MESSAGE_PRESETS.get(state)
+    if not config:
+        return
+    component = str(config.get("component", "info"))
+    if component == "spinner":
+        # Use the loading_message context manager for spinners.
+        return
+    message = str(config.get("text", ""))
+    container = st.container()
+    if component == "warning":
+        container.warning(message)
+    elif component == "error":
+        container.error(message)
+    elif component == "success":
+        container.success(message)
+    else:
+        container.info(message)
+
+    action_cfg = config.get("action") or {}
+    label = action_cfg.get("label")
+    kind = action_cfg.get("kind")
+    if label and kind in {"retry", "modify"}:
+        btn_key = f"{key or state}_action"
+        if kind == "retry":
+            container.button(
+                str(label),
+                key=btn_key,
+                on_click=on_retry,
+                disabled=(on_retry is None) or disable_actions,
+            )
+        elif kind == "modify":
+            container.button(
+                str(label),
+                key=btn_key,
+                on_click=on_modify,
+                disabled=(on_modify is None) or disable_actions,
+            )
+
+    final_guide = guide or config.get("guide")
+    if final_guide:
+        container.caption(str(final_guide))
+
+
 def icon_svg(name: str) -> str:
     return ICON_SVGS.get(name, ICON_SVGS["info"])
 
@@ -414,7 +502,9 @@ def render_metric_bar_chart(metrics_list: List[Dict[str, object]]) -> None:
         margin=dict(l=10, r=10, t=46, b=30),
     )
     fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-    render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+    render_plotly_with_spinner(
+        fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+    )
     st.caption("棒グラフは単位差を補正するために正規化値を使用しています。カードの数値で実数を確認してください。")
 
 
@@ -2509,6 +2599,7 @@ def end_month_selector(
     label: str = "終端月（年計の計算対象）",
     sidebar: bool = False,
     help_text: Optional[str] = None,
+    default: Optional[str] = None,
 ):
     """Month selector that can be rendered either in the main area or sidebar."""
 
@@ -2517,10 +2608,22 @@ def end_month_selector(
     if not mopts:
         widget.caption("対象となる月がありません。")
         return None
+    default_value = default
+    if default_value is None:
+        default_value = st.session_state.get("filters", {}).get("end_month")
+    session_value = st.session_state.get(key)
+    if session_value is None and default_value in mopts:
+        st.session_state[key] = default_value
+        session_value = default_value
+    if session_value not in mopts:
+        fallback = default_value if default_value in mopts else mopts[-1]
+        st.session_state[key] = fallback
+        session_value = fallback
+    index = mopts.index(session_value)
     return widget.selectbox(
         label,
         mopts,
-        index=(len(mopts) - 1) if mopts else 0,
+        index=index,
         key=key,
         help=help_text or "集計結果を確認したい基準月を選択します。",
     )
@@ -2920,6 +3023,9 @@ def _render_sales_tab(
     if not snapshot_month and not monthly_trend.empty:
         snapshot_month = monthly_trend["month"].iloc[-1]
 
+    monthly_value = 0.0
+    delta_label = None
+    yoy_label = "—"
     if not monthly_trend.empty:
         latest = monthly_trend.iloc[-1]
         prev = monthly_trend.iloc[-2] if len(monthly_trend) > 1 else None
@@ -2973,9 +3079,99 @@ def _render_sales_tab(
         f"{top_share:.1f}%" if top_share is not None else "—",
     )
 
+    snapshot_year = pd.DataFrame()
+    if (
+        year_df is not None
+        and not getattr(year_df, "empty", True)
+        and snapshot_month
+    ):
+        snapshot_year = year_df[year_df["month"] == snapshot_month].dropna(
+            subset=["year_sum"]
+        )
+
+    month_totals = pd.DataFrame()
+    if not snapshot.empty:
+        month_totals = snapshot.groupby(
+            ["product_code", "product_name"], as_index=False
+        )["sales_amount_jpy"].sum()
+
+    detail_display_df: Optional[pd.DataFrame] = None
+    detail_formatters: Dict[str, str] = {}
+    detail_csv_data: Optional[bytes] = None
+    pdf_table_df = pd.DataFrame()
+    detail_available = False
+    if not snapshot_year.empty or not month_totals.empty:
+        detail_available = True
+        if snapshot_year.empty:
+            detail_df = month_totals.copy()
+            detail_df["year_sum"] = np.nan
+            detail_df["yoy"] = np.nan
+            detail_df["delta"] = np.nan
+        else:
+            detail_df = snapshot_year[
+                ["product_code", "product_name", "year_sum", "yoy", "delta"]
+            ].copy()
+            if not month_totals.empty:
+                detail_df = detail_df.merge(
+                    month_totals,
+                    on=["product_code", "product_name"],
+                    how="left",
+                )
+            else:
+                detail_df["sales_amount_jpy"] = np.nan
+
+        detail_df["sales_amount_jpy"] = detail_df["sales_amount_jpy"].fillna(0.0)
+        total_month = float(detail_df["sales_amount_jpy"].sum())
+        detail_df["share"] = (
+            detail_df["sales_amount_jpy"] / total_month if total_month > 0 else 0.0
+        )
+
+        detail_display_df = pd.DataFrame(
+            {
+                "商品コード": detail_df["product_code"],
+                "商品名": detail_df["product_name"],
+                f"月次売上({unit})": detail_df["sales_amount_jpy"] / unit_scale,
+                f"年計({unit})": detail_df["year_sum"] / unit_scale,
+                "シェア(%)": detail_df["share"] * 100.0,
+                "前年同月比(%)": detail_df["yoy"] * 100.0,
+                f"前月差({unit})": detail_df["delta"] / unit_scale,
+            }
+        )
+        detail_formatters = {
+            f"月次売上({unit})": "{:,.0f}",
+            f"年計({unit})": "{:,.0f}",
+            "シェア(%)": "{:.1f}%",
+            "前年同月比(%)": "{:.1f}%",
+            f"前月差({unit})": "{:,.0f}",
+        }
+        detail_csv_data = detail_display_df.to_csv(index=False).encode("utf-8-sig")
+
+        pdf_table_df = detail_df[
+            ["product_code", "product_name", "year_sum", "sales_amount_jpy"]
+        ].copy()
+        pdf_table_df["year_sum"] = pdf_table_df["year_sum"].fillna(
+            pdf_table_df["sales_amount_jpy"]
+        )
+        pdf_table_df = pdf_table_df[
+            ["product_code", "product_name", "year_sum"]
+        ]
+
+    pdf_kpi = {
+        "対象月": snapshot_month or "最新月",
+        "月次売上": format_amount(monthly_value, unit),
+        "前年同月比": yoy_label,
+        "前月差": delta_label or "—",
+        "トップ商品構成比": f"{top_share:.1f}%" if top_share is not None else "—",
+    }
+
     st.markdown("##### トレンド")
     if monthly_trend.empty:
-        st.info("表示できる売上データがありません。")
+        render_status_message(
+            "empty",
+            key="sales_trend_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="データ取込や期間設定を確認してください。",
+        )
     else:
         trend_display = monthly_trend.copy()
         trend_display["売上"] = trend_display["sales_amount_jpy"] / unit_scale
@@ -2984,7 +3180,9 @@ def _render_sales_tab(
         fig.update_xaxes(title="月")
         fig.update_layout(height=420, margin=dict(l=10, r=10, t=40, b=10))
         fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+        render_plotly_with_spinner(
+            fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
 
     st.markdown("##### 構成分析")
     comp_cols = st.columns(2)
@@ -2992,7 +3190,12 @@ def _render_sales_tab(
     with comp_cols[0]:
         st.markdown("###### 商品別")
         if snapshot.empty:
-            st.info("選択した期間のデータがありません。")
+            render_status_message(
+                "empty",
+                key="sales_product_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="期間や店舗の条件を変更して再表示してください。",
+            )
         else:
             product_comp = (
                 snapshot.groupby(["product_code", "product_name"], as_index=False)[
@@ -3003,7 +3206,12 @@ def _render_sales_tab(
             )
             total_amount = float(product_comp["sales_amount_jpy"].sum())
             if total_amount <= 0:
-                st.info("売上構成を表示できません。")
+                render_status_message(
+                    "empty",
+                    key="sales_product_zero",
+                    on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                    guide="売上が発生している期間を選択してください。",
+                )
             else:
                 product_comp["シェア"] = (
                     product_comp["sales_amount_jpy"] / total_amount * 100.0
@@ -3028,7 +3236,9 @@ def _render_sales_tab(
                 fig_prod = apply_elegant_theme(
                     fig_prod, theme=st.session_state.get("ui_theme", "light")
                 )
-                render_plotly_with_spinner(fig_prod, config=PLOTLY_CONFIG)
+                render_plotly_with_spinner(
+                    fig_prod, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
 
     with comp_cols[1]:
         st.markdown("###### チャネル別")
@@ -3040,7 +3250,12 @@ def _render_sales_tab(
             )
             total_channel = float(channel_comp["sales_amount_jpy"].sum())
             if total_channel <= 0:
-                st.info("チャネル別構成を表示できません。")
+                render_status_message(
+                    "empty",
+                    key="sales_channel_zero",
+                    on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                    guide="チャネル別データが含まれる期間を選択してください。",
+                )
             else:
                 channel_comp["シェア"] = (
                     channel_comp["sales_amount_jpy"] / total_channel * 100.0
@@ -3062,90 +3277,65 @@ def _render_sales_tab(
                 fig_channel = apply_elegant_theme(
                     fig_channel, theme=st.session_state.get("ui_theme", "light")
                 )
-                render_plotly_with_spinner(fig_channel, config=PLOTLY_CONFIG)
+                render_plotly_with_spinner(
+                    fig_channel, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
 
     st.markdown("##### 明細テーブル")
-    with st.expander("売上明細を表示", expanded=False):
-        snapshot_year = pd.DataFrame()
-        if (
-            year_df is not None
-            and not getattr(year_df, "empty", True)
-            and snapshot_month
-        ):
-            snapshot_year = year_df[year_df["month"] == snapshot_month].dropna(
-                subset=["year_sum"]
-            )
-
-        month_totals = pd.DataFrame()
-        if not snapshot.empty:
-            month_totals = snapshot.groupby(
-                ["product_code", "product_name"], as_index=False
-            )["sales_amount_jpy"].sum()
-
-        if snapshot_year.empty and month_totals.empty:
-            st.info("表示できる明細がありません。")
-        else:
-            if snapshot_year.empty:
-                detail_df = month_totals.copy()
-                detail_df["year_sum"] = np.nan
-                detail_df["yoy"] = np.nan
-                detail_df["delta"] = np.nan
-            else:
-                detail_df = snapshot_year[[
-                    "product_code",
-                    "product_name",
-                    "year_sum",
-                    "yoy",
-                    "delta",
-                ]].copy()
-                if not month_totals.empty:
-                    detail_df = detail_df.merge(
-                        month_totals,
-                        on=["product_code", "product_name"],
-                        how="left",
-                    )
-                else:
-                    detail_df["sales_amount_jpy"] = np.nan
-
-            detail_df["sales_amount_jpy"] = detail_df["sales_amount_jpy"].fillna(0.0)
-            total_month = float(detail_df["sales_amount_jpy"].sum())
-            detail_df["share"] = (
-                detail_df["sales_amount_jpy"] / total_month
-                if total_month > 0
-                else 0.0
-            )
-
-            display_df = pd.DataFrame(
-                {
-                    "商品コード": detail_df["product_code"],
-                    "商品名": detail_df["product_name"],
-                    f"月次売上({unit})": detail_df["sales_amount_jpy"] / unit_scale,
-                    f"年計({unit})": detail_df["year_sum"] / unit_scale,
-                    "シェア(%)": detail_df["share"] * 100.0,
-                    "前年同月比(%)": detail_df["yoy"] * 100.0,
-                    f"前月差({unit})": detail_df["delta"] / unit_scale,
-                }
-            )
-
-            st.dataframe(
-                display_df.style.format(
-                    {
-                        f"月次売上({unit})": "{:,.0f}",
-                        f"年計({unit})": "{:,.0f}",
-                        "シェア(%)": "{:.1f}%",
-                        "前年同月比(%)": "{:.1f}%",
-                        f"前月差({unit})": "{:,.0f}",
-                    }
-                ),
-                use_container_width=True,
-            )
-
-            csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
+    csv_clicked = False
+    pdf_clicked = False
+    pdf_bytes: bytes = b""
+    pdf_filename = f"sales_detail_{snapshot_month or 'latest'}.pdf"
+    if detail_available:
+        output_cols = st.columns(2)
+        with output_cols[0]:
+            csv_clicked = st.download_button(
                 "CSVダウンロード",
-                data=csv_data,
+                data=detail_csv_data or b"",
                 file_name="sales_detail.csv",
                 mime="text/csv",
+                disabled=detail_csv_data is None,
+                help="表を開かなくても最新の売上明細CSVを保存できます。",
+                key="sales_detail_csv",
+            )
+        with output_cols[1]:
+            pdf_enabled = not pdf_table_df.empty
+            if pdf_enabled:
+                pdf_bytes = download_pdf_overview(pdf_kpi, pdf_table_df, pdf_filename)
+            pdf_clicked = st.download_button(
+                "PDFダウンロード",
+                data=pdf_bytes if pdf_enabled else b"",
+                file_name=pdf_filename,
+                mime="application/pdf",
+                disabled=not pdf_enabled,
+                help="KPIサマリー付きPDFをワンクリックで出力します。",
+                key="sales_detail_pdf",
+            )
+        if csv_clicked:
+            render_status_message(
+                "completed",
+                key="sales_csv_download",
+                guide="粗利タブでも同様にCSV出力できます。",
+            )
+        if pdf_clicked:
+            render_status_message(
+                "completed",
+                key="sales_pdf_download",
+                guide="ダウンロードしたPDFを会議資料として共有してください。",
+            )
+
+    with st.expander("売上明細を表示", expanded=False):
+        if not detail_available or detail_display_df is None:
+            render_status_message(
+                "empty",
+                key="sales_detail_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="期間や店舗を切り替えてデータを再取得してください。",
+            )
+        else:
+            st.dataframe(
+                detail_display_df.style.format(detail_formatters),
+                use_container_width=True,
             )
 
 
@@ -3240,7 +3430,12 @@ def _render_gross_profit_tab(
 
     st.markdown("##### 粗利額と粗利率の推移")
     if gross_trend.empty:
-        st.info("表示できる粗利データがありません。")
+        render_status_message(
+            "empty",
+            key="gross_trend_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="売上データを確認し、粗利計算に必要な期間を選択してください。",
+        )
     else:
         fig = go.Figure()
         fig.add_trace(
@@ -3267,7 +3462,9 @@ def _render_gross_profit_tab(
             barmode="relative",
         )
         fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+        render_plotly_with_spinner(
+            fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
 
     snapshot = pd.DataFrame()
     if snapshot_month:
@@ -3281,7 +3478,12 @@ def _render_gross_profit_tab(
     with comp_cols[0]:
         st.markdown("###### 商品別粗利")
         if snapshot.empty:
-            st.info("対象月のデータがありません。")
+            render_status_message(
+                "empty",
+                key="gross_product_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="期間を変えると商品別粗利が表示されます。",
+            )
         else:
             prod_gross = (
                 snapshot.groupby(["product_code", "product_name"], as_index=False)[
@@ -3293,7 +3495,12 @@ def _render_gross_profit_tab(
             prod_gross["gross_amount"] = prod_gross["sales_amount_jpy"] * gross_ratio
             total_gross = float(prod_gross["gross_amount"].sum())
             if total_gross <= 0:
-                st.info("粗利構成を表示できません。")
+                render_status_message(
+                    "empty",
+                    key="gross_product_zero",
+                    on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                    guide="粗利が発生している期間を選択してください。",
+                )
             else:
                 prod_gross["表示額"] = prod_gross["gross_amount"] / unit_scale
                 prod_gross["シェア"] = prod_gross["gross_amount"] / total_gross * 100.0
@@ -3313,12 +3520,19 @@ def _render_gross_profit_tab(
                 fig_prod = apply_elegant_theme(
                     fig_prod, theme=st.session_state.get("ui_theme", "light")
                 )
-                render_plotly_with_spinner(fig_prod, config=PLOTLY_CONFIG)
+                render_plotly_with_spinner(
+                    fig_prod, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
 
     with comp_cols[1]:
         st.markdown("###### 粗利率の推移 (トップ商品)")
         if snapshot.empty or snapshot_month is None:
-            st.info("粗利率の推移を表示できません。")
+            render_status_message(
+                "empty",
+                key="gross_margin_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="対象月を変更すると粗利率の推移を確認できます。",
+            )
         else:
             top_codes = (
                 snapshot.groupby("product_code")["sales_amount_jpy"].sum()
@@ -3327,7 +3541,12 @@ def _render_gross_profit_tab(
                 .index.tolist()
             )
             if not top_codes:
-                st.info("表示できる商品がありません。")
+                render_status_message(
+                    "empty",
+                    key="gross_margin_top_empty",
+                    on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                    guide="粗利が大きい商品が存在する期間を選択してください。",
+                )
             else:
                 history = filtered_monthly[
                     filtered_monthly["product_code"].isin(top_codes)
@@ -3338,7 +3557,12 @@ def _render_gross_profit_tab(
                     np.nan,
                 )
                 if history.empty:
-                    st.info("粗利率のデータがありません。")
+                    render_status_message(
+                        "empty",
+                        key="gross_margin_history_empty",
+                        on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                        guide="対象期間内に粗利が発生していることを確認してください。",
+                    )
                 else:
                     fig_margin = px.line(
                         history,
@@ -3356,12 +3580,21 @@ def _render_gross_profit_tab(
                     fig_margin = apply_elegant_theme(
                         fig_margin, theme=st.session_state.get("ui_theme", "light")
                     )
-                    render_plotly_with_spinner(fig_margin, config=PLOTLY_CONFIG)
+                    render_plotly_with_spinner(
+                        fig_margin,
+                        config=PLOTLY_CONFIG,
+                        spinner_text=SPINNER_MESSAGE,
+                    )
 
     st.markdown("##### 明細テーブル")
     with st.expander("粗利明細を表示", expanded=False):
         if snapshot_year.empty:
-            st.info("表示できる明細がありません。")
+            render_status_message(
+                "empty",
+                key="gross_detail_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="期間やテンプレートの設定を見直してください。",
+            )
         else:
             detail_df = snapshot_year[[
                 "product_code",
@@ -3426,12 +3659,19 @@ def _render_gross_profit_tab(
             )
 
             csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
+            clicked = st.download_button(
                 "CSVダウンロード",
                 data=csv_data,
                 file_name="gross_profit_detail.csv",
                 mime="text/csv",
+                key="gross_detail_csv",
             )
+            if clicked:
+                render_status_message(
+                    "completed",
+                    key="gross_detail_download",
+                    guide="在庫タブでも同様に明細をダウンロードできます。",
+                )
 
 
 def _render_inventory_tab(
@@ -3445,7 +3685,12 @@ def _render_inventory_tab(
     unit_scale = UNIT_MAP.get(unit, 1)
     year_totals = _monthly_year_totals(year_df)
     if year_totals.empty:
-        st.info("在庫データがありません。設定からデータを確認してください。")
+        render_status_message(
+            "empty",
+            key="inventory_missing",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="データ取込ページで在庫関連のカラムを設定してください。",
+        )
         return
 
     cogs_ratio = float(profile.get("cogs_ratio", 0.6) or 0.0)
@@ -3536,7 +3781,9 @@ def _render_inventory_tab(
         yaxis2=dict(title="回転率(回)", overlaying="y", side="right"),
     )
     fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-    render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+    render_plotly_with_spinner(
+        fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+    )
 
     st.markdown("##### アラート")
     alerts_year = pd.DataFrame()
@@ -3549,9 +3796,9 @@ def _render_inventory_tab(
             subset=["year_sum"]
         )
 
-    if alerts_year.empty or inv_value <= 0:
-        st.info("しきい値に該当する在庫アラートはありません。")
-    else:
+    stockout_alerts = pd.DataFrame()
+    excess_alerts = pd.DataFrame()
+    if not alerts_year.empty and inv_value > 0:
         total_year_sum = alerts_year["year_sum"].sum()
         alerts_year = alerts_year.copy()
         alerts_year["inventory_value"] = np.where(
@@ -3560,14 +3807,27 @@ def _render_inventory_tab(
             0.0,
         )
         stockout_alerts = alerts_year[
-            (alerts_year["yoy"] > 0.15) & (
-                alerts_year["inventory_value"] < inv_value * 0.02
-            )
+            (alerts_year["yoy"] > 0.15)
+            & (alerts_year["inventory_value"] < inv_value * 0.02)
         ]
         excess_alerts = alerts_year[
             (alerts_year["yoy"] < -0.1)
             & (alerts_year["inventory_value"] > inv_value * 0.05)
         ]
+
+    alert_cols = st.columns(3)
+    alert_cols[0].metric("品切れリスク", f"{len(stockout_alerts)} 件")
+    alert_cols[1].metric("過剰在庫リスク", f"{len(excess_alerts)} 件")
+    alert_cols[2].metric("評価対象SKU", f"{len(alerts_year)} 件")
+
+    if alerts_year.empty or inv_value <= 0:
+        render_status_message(
+            "empty",
+            key="inventory_alert_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="在庫金額と売上指標を含むデータを読み込んでください。",
+        )
+    else:
         if not stockout_alerts.empty:
             st.warning(
                 f"品切れリスク: {len(stockout_alerts)} 件 — 売上が伸びる一方で在庫が少ない商品があります。"
@@ -3579,12 +3839,52 @@ def _render_inventory_tab(
         if stockout_alerts.empty and excess_alerts.empty:
             st.success("在庫バランスは良好です。")
 
+    category_column = None
+    for candidate in ("category", "カテゴリ", "category_name", "カテゴリー"):
+        if candidate in alerts_year.columns:
+            category_column = candidate
+            break
+    if category_column and not alerts_year.empty:
+        st.markdown("##### カテゴリー別在庫")
+        category_df = alerts_year.copy()
+        if "inventory_value" not in category_df.columns:
+            category_df["inventory_value"] = category_df["year_sum"]
+        category_df = (
+            category_df.groupby(category_column, as_index=False)["inventory_value"].sum()
+        )
+        category_df = category_df.sort_values("inventory_value", ascending=False)
+        category_df["表示額"] = category_df["inventory_value"] / unit_scale
+        fig_category = px.bar(
+            category_df.head(12).sort_values("表示額"),
+            x="表示額",
+            y=category_column,
+            orientation="h",
+            text=category_df.head(12)["表示額"].map(lambda v: f"{v:,.0f}"),
+        )
+        fig_category.update_layout(
+            height=380,
+            margin=dict(l=10, r=10, t=30, b=10),
+            xaxis_title=f"在庫金額 ({unit})",
+            yaxis_title="カテゴリー",
+        )
+        fig_category = apply_elegant_theme(
+            fig_category, theme=st.session_state.get("ui_theme", "light")
+        )
+        render_plotly_with_spinner(
+            fig_category, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
+
     st.markdown("##### 在庫構成と明細")
     comp_cols = st.columns(2)
     with comp_cols[0]:
         st.markdown("###### 商品別在庫構成")
         if alerts_year.empty or inv_value <= 0:
-            st.info("在庫構成を表示できません。")
+            render_status_message(
+                "empty",
+                key="inventory_product_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="在庫金額が集計できるようデータを再確認してください。",
+            )
         else:
             product_inv = alerts_year[[
                 "product_code",
@@ -3612,12 +3912,19 @@ def _render_inventory_tab(
             fig_inv = apply_elegant_theme(
                 fig_inv, theme=st.session_state.get("ui_theme", "light")
             )
-            render_plotly_with_spinner(fig_inv, config=PLOTLY_CONFIG)
+            render_plotly_with_spinner(
+                fig_inv, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
 
     with comp_cols[1]:
         st.markdown("###### 在庫回転率 (商品別)")
         if alerts_year.empty:
-            st.info("表示できるデータがありません。")
+            render_status_message(
+                "empty",
+                key="inventory_turnover_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="在庫指標が計算できる期間を選択してください。",
+            )
         else:
             product_turnover = alerts_year[[
                 "product_code",
@@ -3640,11 +3947,18 @@ def _render_inventory_tab(
             fig_turnover = apply_elegant_theme(
                 fig_turnover, theme=st.session_state.get("ui_theme", "light")
             )
-            render_plotly_with_spinner(fig_turnover, config=PLOTLY_CONFIG)
+            render_plotly_with_spinner(
+                fig_turnover, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
 
     with st.expander("在庫明細を表示", expanded=False):
         if alerts_year.empty:
-            st.info("表示できる明細がありません。")
+            render_status_message(
+                "empty",
+                key="inventory_detail_empty",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="在庫データを再読み込みしてからご確認ください。",
+            )
         else:
             detail_df = alerts_year[[
                 "product_code",
@@ -3676,12 +3990,19 @@ def _render_inventory_tab(
                 use_container_width=True,
             )
             csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
+            clicked = st.download_button(
                 "CSVダウンロード",
                 data=csv_data,
                 file_name="inventory_detail.csv",
                 mime="text/csv",
+                key="inventory_detail_csv",
             )
+            if clicked:
+                render_status_message(
+                    "completed",
+                    key="inventory_detail_download",
+                    guide="ダウンロードした明細を補充計画に活用してください。",
+                )
 
 
 def _render_funds_tab(
@@ -3696,7 +4017,12 @@ def _render_funds_tab(
     cash_items = profile.get("cash_flow", []) or []
     year_totals = _monthly_year_totals(year_df)
     if year_totals.empty:
-        st.info("資金繰りデータがありません。設定からデータを確認してください。")
+        render_status_message(
+            "empty",
+            key="funds_missing",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="キャッシュフローの前提が設定されているか確認してください。",
+        )
         return
 
     cash_long: List[Dict[str, object]] = []
@@ -3738,7 +4064,12 @@ def _render_funds_tab(
 
     st.markdown("##### キャッシュフロー推移")
     if cash_df.empty:
-        st.info("キャッシュフローデータが不足しています。")
+        render_status_message(
+            "empty",
+            key="funds_flow_data_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="キャッシュフロー設定に必要な比率と金額を確認してください。",
+        )
     else:
         display_df = cash_df.copy()
         display_df["表示額"] = display_df["amount"] / unit_scale
@@ -3765,7 +4096,9 @@ def _render_funds_tab(
             yaxis_title=f"金額 ({unit})",
         )
         fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+        render_plotly_with_spinner(
+            fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
 
     st.markdown("##### 入出金構成")
     latest_month = end_month or (net_series["month"].iloc[-1] if not net_series.empty else None)
@@ -3773,7 +4106,12 @@ def _render_funds_tab(
     if latest_month and not cash_df.empty:
         latest_flows = cash_df[cash_df["month"] == latest_month]
     if latest_flows.empty:
-        st.info("最新月の入出金データがありません。")
+        render_status_message(
+            "empty",
+            key="funds_latest_flow_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="キャッシュフロー項目と金額を入力して再計算してください。",
+        )
     else:
         latest_flows = latest_flows.copy()
         latest_flows["表示額"] = latest_flows["amount"] / unit_scale
@@ -3792,11 +4130,18 @@ def _render_funds_tab(
         fig_latest = apply_elegant_theme(
             fig_latest, theme=st.session_state.get("ui_theme", "light")
         )
-        render_plotly_with_spinner(fig_latest, config=PLOTLY_CONFIG)
+        render_plotly_with_spinner(
+            fig_latest, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
 
     with st.expander("資金繰り計算書を表示", expanded=False):
         if not flows:
-            st.info("テンプレートのキャッシュフロー比率が設定されていません。")
+            render_status_message(
+                "empty",
+                key="funds_flow_missing",
+                on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+                guide="設定ページでキャッシュフロー比率を入力してください。",
+            )
         else:
             table_df = pd.DataFrame(flows)
             table_df["金額({unit})"] = table_df["amount"].astype(float) / unit_scale
@@ -3814,12 +4159,19 @@ def _render_funds_tab(
                 use_container_width=True,
             )
             csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
+            clicked = st.download_button(
                 "CSVダウンロード",
                 data=csv_data,
                 file_name="cash_flow_statement.csv",
                 mime="text/csv",
+                key="funds_statement_csv",
             )
+            if clicked:
+                render_status_message(
+                    "completed",
+                    key="funds_statement_download",
+                    guide="キャッシュフロー表を財務チームと共有しましょう。",
+                )
 
 
 def nice_slider_step(max_value: int, target_steps: int = 40) -> int:
@@ -5436,7 +5788,7 @@ def render_sample_data_hub() -> None:
             help="サンプルCSVをアプリに読み込み、ダッシュボードをすぐに体験します。",
         ):
             try:
-                with st.spinner("サンプルデータを初期化しています…"):
+                with loading_message("サンプルデータを初期化しています…"):
                     ingest_wide_dataframe(
                         sample_df.copy(),
                         product_name_col=selected_meta.name_column,
@@ -5460,7 +5812,7 @@ def render_sample_data_hub() -> None:
             help="売上トレンドを再現した合成データで、主要な分析ページをすぐに表示します。",
         ):
             try:
-                with st.spinner("デモデータを準備しています…"):
+                with loading_message("デモデータを準備しています…"):
                     demo_long = load_sample_dataset()
                     process_long_dataframe(demo_long)
                 st.session_state.sample_data_notice = True
@@ -6327,6 +6679,8 @@ if year_df is not None and not year_df.empty:
             label="ランキング対象月",
             sidebar=True,
         )
+        if sidebar_state["rank_end_month"]:
+            st.session_state.filters["end_month"] = sidebar_state["rank_end_month"]
         st.sidebar.subheader("評価指標")
         metric_options = [
             ("年計（12カ月累計）", "year_sum"),
@@ -6365,6 +6719,8 @@ if year_df is not None and not year_df.empty:
             label="比較対象月",
             sidebar=True,
         )
+        if sidebar_state["compare_end_month"]:
+            st.session_state.filters["end_month"] = sidebar_state["compare_end_month"]
     elif page == "SKU詳細":
         st.sidebar.subheader("期間選択")
         sidebar_state["detail_end_month"] = end_month_selector(
@@ -6373,6 +6729,8 @@ if year_df is not None and not year_df.empty:
             label="詳細確認月",
             sidebar=True,
         )
+        if sidebar_state["detail_end_month"]:
+            st.session_state.filters["end_month"] = sidebar_state["detail_end_month"]
     elif page == "相関分析":
         st.sidebar.subheader("期間選択")
         sidebar_state["corr_end_month"] = end_month_selector(
@@ -6381,6 +6739,8 @@ if year_df is not None and not year_df.empty:
             label="分析対象月",
             sidebar=True,
         )
+        if sidebar_state["corr_end_month"]:
+            st.session_state.filters["end_month"] = sidebar_state["corr_end_month"]
     elif page == "アラート":
         st.sidebar.subheader("期間選択")
         sidebar_state["alert_end_month"] = end_month_selector(
@@ -6389,6 +6749,8 @@ if year_df is not None and not year_df.empty:
             label="評価対象月",
             sidebar=True,
         )
+        if sidebar_state["alert_end_month"]:
+            st.session_state.filters["end_month"] = sidebar_state["alert_end_month"]
 
 st.sidebar.divider()
 
@@ -6617,13 +6979,20 @@ No auto-calculated metrics are linked to this template."""
             "Download CSV template",
             help_text="推奨科目と月度列を含むテンプレートをダウンロードし、社内で共有できます。",
         )
-        st.download_button(
+        template_clicked = st.download_button(
             "CSVテンプレートをダウンロード / Download CSV template",
             data=template_bytes,
             file_name=f"{active_template}_template.csv",
             mime="text/csv",
             help="推奨科目と12ヶ月の月度列を含むテンプレートをダウンロードします。/ Download a starter CSV with recommended columns and 12 month headers.",
+            key="template_csv_download",
         )
+        if template_clicked:
+            render_status_message(
+                "completed",
+                key="template_csv_downloaded",
+                guide="テンプレートをチームに共有してデータ入力を統一しましょう。",
+            )
 
     missing_policy_options = ["zero_fill", "mark_missing"]
     current_policy = st.session_state.settings.get("missing_policy", "zero_fill")
@@ -6704,7 +7073,7 @@ No auto-calculated metrics are linked to this template."""
 
         if file is not None:
             try:
-                with st.spinner("ファイルを読み込んでいます… / Loading file..."):
+                with loading_message("ファイルを読み込んでいます…"):
                     if file.name.lower().endswith(".csv"):
                         df_raw = pd.read_csv(file)
                     else:
@@ -6752,7 +7121,7 @@ No auto-calculated metrics are linked to this template."""
 
             if convert_clicked:
                 try:
-                    with st.spinner("年計データを計算中… / Calculating yearly metrics..."):
+                    with loading_message("年計データを計算中…"):
                         long_df, year_df = ingest_wide_dataframe(
                             df_raw,
                             product_name_col=product_name_col,
@@ -6817,6 +7186,11 @@ After validating and mapping the CSV/XLSX, yearly KPIs will be calculated automa
                 )
                 if download_clicked:
                     st.session_state.import_report_completed = True
+                    render_status_message(
+                        "completed",
+                        key="import_year_csv_ready",
+                        guide="ダウンロードしたCSVを共有し、最新の年計指標を連携できます。",
+                    )
             st.caption(
                 """ダッシュボードやランキングに移動して、AIサマリーやPDF出力を活用しましょう。
 Move to the dashboard or ranking pages to use AI summaries and PDF exports."""
@@ -6837,6 +7211,11 @@ Move to the dashboard or ranking pages to use AI summaries and PDF exports."""
             )
             if download_clicked:
                 st.session_state.import_report_completed = True
+                render_status_message(
+                    "completed",
+                    key="import_year_csv_ready",
+                    guide="ダウンロードしたCSVを共有し、最新の年計指標を連携できます。",
+                )
             st.caption(
                 """現在のデータセットに基づく品質サマリーを取得しています。
 Quality metrics are available for the current dataset."""
@@ -6932,6 +7311,7 @@ elif page == "ダッシュボード":
             "period": period_value,
             "currency_unit": unit_value,
             "store": store_value,
+            "end_month": active_end_month,
         }
     )
 
@@ -7037,7 +7417,8 @@ elif page == "ランキング":
 
     ai_on = st.toggle(
         "AIサマリー",
-        value=False,
+        value=st.session_state.get("rank_ai_toggle", False),
+        key="rank_ai_toggle",
         help="要約・コメント・自動説明を表示（オンデマンド計算）",
     )
 
@@ -7056,7 +7437,9 @@ elif page == "ランキング":
     fig_bar = apply_elegant_theme(
         fig_bar, theme=st.session_state.get("ui_theme", "light")
     )
-    render_plotly_with_spinner(fig_bar, config=PLOTLY_CONFIG)
+    render_plotly_with_spinner(
+        fig_bar, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+    )
 
     with st.expander("AIサマリー", expanded=ai_on):
         if ai_on and not snap.empty:
@@ -7070,18 +7453,32 @@ elif page == "ランキング":
         use_container_width=True,
     )
 
-    st.download_button(
+    csv_clicked = st.download_button(
         "CSVダウンロード",
         data=snap.to_csv(index=False).encode("utf-8-sig"),
         file_name=f"ranking_{metric}_{end_m}.csv",
         mime="text/csv",
+        key="ranking_csv_download",
     )
-    st.download_button(
+    if csv_clicked:
+        render_status_message(
+            "completed",
+            key="ranking_csv_downloaded",
+            guide="ランキングCSVを共有して商談準備に活用してください。",
+        )
+    excel_clicked = st.download_button(
         "Excelダウンロード",
         data=download_excel(snap, f"ranking_{metric}_{end_m}.xlsx"),
         file_name=f"ranking_{metric}_{end_m}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="ranking_excel_download",
     )
+    if excel_clicked:
+        render_status_message(
+            "completed",
+            key="ranking_excel_downloaded",
+            guide="Excel出力を使って詳細な並び替えや共有を行いましょう。",
+        )
 
     # 4) 比較ビュー（マルチ商品バンド）
 elif page == "比較ビュー":
@@ -7437,7 +7834,8 @@ elif page == "比較ビュー":
     with ai_summary_container:
         ai_on = st.toggle(
             "AIサマリー",
-            value=False,
+            value=st.session_state.get("compare_ai_toggle", False),
+            key="compare_ai_toggle",
             help="要約・コメント・自動説明を表示（オンデマンド計算）",
         )
         with st.expander("AIサマリー", expanded=ai_on):
@@ -7508,20 +7906,34 @@ zスコア：全SKUの傾き分布に対する標準化。|z|≥1.5で急勾配�
     snap_export = snapshot[snapshot["product_code"].isin(main_codes)].copy()
     snap_export[f"year_sum_{unit}"] = snap_export["year_sum"] / scale
     snap_export = snap_export.drop(columns=["year_sum"])
-    st.download_button(
+    csv_band_clicked = st.download_button(
         "CSVエクスポート",
         data=snap_export.to_csv(index=False).encode("utf-8-sig"),
         file_name=f"band_snapshot_{end_m}.csv",
         mime="text/csv",
+        key="compare_band_csv",
     )
+    if csv_band_clicked:
+        render_status_message(
+            "completed",
+            key="compare_band_csv_downloaded",
+            guide="比較ビューのCSVを共有してチーム分析に役立てましょう。",
+        )
     try:
         png_bytes = fig.to_image(format="png")
-        st.download_button(
+        png_clicked = st.download_button(
             "PNGエクスポート",
             data=png_bytes,
             file_name=f"band_overlay_{end_m}.png",
             mime="image/png",
+            key="compare_band_png",
         )
+        if png_clicked:
+            render_status_message(
+                "completed",
+                key="compare_band_png_downloaded",
+                guide="可視化画像を資料に貼り付けて共有できます。",
+            )
     except Exception:
         pass
 
@@ -7529,7 +7941,9 @@ zスコア：全SKUの傾き分布に対する標準化。|z|≥1.5で急勾配�
         hist_fig = apply_elegant_theme(
             hist_fig, theme=st.session_state.get("ui_theme", "light")
         )
-        render_plotly_with_spinner(hist_fig, config=PLOTLY_CONFIG)
+        render_plotly_with_spinner(
+            hist_fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
 
     # ---- Small Multiples ----
     df_nodes = df_main.iloc[0:0].copy()
@@ -7602,7 +8016,9 @@ zスコア：全SKUの傾き分布に対する標準化。|z|≥1.5で急勾配�
                 fig_s, theme=st.session_state.get("ui_theme", "light")
             )
             fig_s.update_layout(height=225)
-            render_plotly_with_spinner(fig_s, config=PLOTLY_CONFIG)
+            render_plotly_with_spinner(
+                fig_s, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
 
     # 5) SKU詳細
 elif page == "SKU詳細":
@@ -7621,7 +8037,8 @@ elif page == "SKU詳細":
 
     ai_on = st.toggle(
         "AIサマリー",
-        value=False,
+        value=st.session_state.get("sku_detail_ai_toggle", False),
+        key="sku_detail_ai_toggle",
         help="要約・コメント・自動説明を表示（オンデマンド計算）",
     )
 
@@ -7957,7 +8374,9 @@ elif page == "異常検知":
             fig_anom = apply_elegant_theme(
                 fig_anom, theme=st.session_state.get("ui_theme", "light")
             )
-            render_plotly_with_spinner(fig_anom, config=PLOTLY_CONFIG)
+            render_plotly_with_spinner(
+                fig_anom, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
 
 # 6) 相関分析
 elif page == "相関分析":
@@ -8043,7 +8462,9 @@ elif page == "相関分析":
             fig_corr = apply_elegant_theme(
                 fig_corr, theme=st.session_state.get("ui_theme", "light")
             )
-            render_plotly_with_spinner(fig_corr, config=PLOTLY_CONFIG)
+            render_plotly_with_spinner(
+                fig_corr, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
 
             st.subheader("ペア・エクスプローラ")
             c1, c2 = st.columns(2)
@@ -8091,7 +8512,9 @@ elif page == "相関分析":
                 fig_sc = apply_elegant_theme(
                     fig_sc, theme=st.session_state.get("ui_theme", "light")
                 )
-                render_plotly_with_spinner(fig_sc, config=PLOTLY_CONFIG)
+                render_plotly_with_spinner(
+                    fig_sc, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
                 st.caption("rは -1〜+1。0は関連が薄い。CIに0を含まなければ有意。")
                 st.caption("散布図の点が右上・左下に伸びれば正、右下・左上なら負。")
         else:
@@ -8258,7 +8681,9 @@ elif page == "相関分析":
                                         fig_corr, theme=st.session_state.get("ui_theme", "light")
                                     )
                                     render_plotly_with_spinner(
-                                        fig_corr, config=PLOTLY_CONFIG
+                                        fig_corr,
+                                        config=PLOTLY_CONFIG,
+                                        spinner_text=SPINNER_MESSAGE,
                                     )
 
                                     st.subheader("SKUペア・エクスプローラ")
@@ -8344,7 +8769,9 @@ elif page == "相関分析":
                                             theme=st.session_state.get("ui_theme", "light"),
                                         )
                                         render_plotly_with_spinner(
-                                            fig_sc, config=PLOTLY_CONFIG
+                                            fig_sc,
+                                            config=PLOTLY_CONFIG,
+                                            spinner_text=SPINNER_MESSAGE,
                                         )
                                         st.caption(
                                             "各点は対象期間の月次値。右上（左下）に伸びれば同時に増加（減少）。"
