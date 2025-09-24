@@ -67,6 +67,276 @@ PLOTLY_CONFIG = {
 }
 PLOTLY_CONFIG["locale"] = "ja" if current_language == "ja" else "en"
 
+ICON_SVGS: Dict[str, str] = {
+    "template": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2.2\" ry=\"2.2\"/>
+      <path d=\"M8 9h8M8 13h5\"/>
+    </svg>
+    """,
+    "upload": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M4 16.5v3.3A1.2 1.2 0 0 0 5.2 21h13.6A1.2 1.2 0 0 0 20 19.8v-3.3\"/>
+      <path d=\"M12 4v11.5\"/>
+      <path d=\"m7.5 8.5 4.5-4.5 4.5 4.5\"/>
+    </svg>
+    """,
+    "download": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M4 16v3.2A1.2 1.2 0 0 0 5.2 20.4h13.6A1.2 1.2 0 0 0 20 19.2V16\"/>
+      <path d=\"M12 3.5v11.5\"/>
+      <path d=\"m7.5 10.5 4.5 4.5 4.5-4.5\"/>
+    </svg>
+    """,
+    "metrics": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M5 19V9m7 10V5m7 14v-7\"/>
+      <path d=\"M3 19h18\"/>
+    </svg>
+    """,
+    "quality": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M12 3 4.8 6v6c0 4.3 3 7.9 7.2 9 4.2-1.1 7.2-4.7 7.2-9V6Z\"/>
+      <path d=\"m9.5 12 1.9 1.9 3.1-3.4\"/>
+    </svg>
+    """,
+    "info": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <circle cx=\"12\" cy=\"12\" r=\"9\"/>
+      <path d=\"M12 8.5h.01M10.8 11.3h1.2v4.2\"/>
+    </svg>
+    """,
+    "alert": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M12 4 3 19h18Z\"/>
+      <path d=\"M12 10.2v3.6M12 16.8h.01\"/>
+    </svg>
+    """,
+    "check": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"m5.5 12.8 3.6 3.6L18.4 7\"/>
+    </svg>
+    """,
+    "policy": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M4 7h16M6 12h12M8 17h8\"/>
+      <path d=\"M9 5v4M15 10v4M12 15v4\"/>
+    </svg>
+    """,
+    "dataset": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M4 6.5C4 4.6 7.6 3 12 3s8 1.6 8 3.5S16.4 10 12 10 4 8.4 4 6.5Z\"/>
+      <path d=\"M4 11.5C4 13.4 7.6 15 12 15s8-1.6 8-3.5\"/>
+      <path d=\"M4 16.5C4 18.4 7.6 20 12 20s8-1.6 8-3.5\"/>
+    </svg>
+    """,
+    "trend": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"m5 15 4-4 3 3 6-7\"/>
+      <path d=\"M16 7h4v4\"/>
+    </svg>
+    """,
+    "delta": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <path d=\"M5 7h14l-7 10Z\"/>
+    </svg>
+    """,
+    "sku": """
+    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
+      <rect x=\"3.5\" y=\"5\" width=\"6\" height=\"14\" rx=\"1.6\"/>
+      <rect x=\"14.5\" y=\"5\" width=\"6\" height=\"14\" rx=\"1.6\"/>
+      <path d=\"M6.5 9h0.01M6.5 12h0.01M6.5 15h0.01M17.5 9h0.01M17.5 12h0.01M17.5 15h0.01\"/>
+    </svg>
+    """,
+}
+
+
+def icon_svg(name: str) -> str:
+    return ICON_SVGS.get(name, ICON_SVGS["info"])
+
+
+def render_icon_label(
+    icon_key: str,
+    primary: str,
+    secondary: Optional[str] = None,
+    *,
+    help_text: Optional[str] = None,
+) -> None:
+    icon_html = icon_svg(icon_key)
+    primary_html = html.escape(primary)
+    secondary_html = (
+        f"<span class='mck-inline-label__secondary'>{html.escape(secondary)}</span>"
+        if secondary
+        else ""
+    )
+    help_html = ""
+    if help_text:
+        tooltip = html.escape(help_text).replace("\n", "&#10;")
+        help_html = (
+            "<span class='mck-inline-label__help' tabindex='0' aria-label='ヘルプ' "
+            f"data-tooltip='{tooltip}'>?</span>"
+        )
+    st.markdown(
+        """
+        <div class="mck-inline-label mck-animated">
+          <span class="mck-inline-label__icon" aria-hidden="true">{icon}</span>
+          <div class="mck-inline-label__texts">
+            <span class="mck-inline-label__primary">{primary}</span>
+            {secondary}
+          </div>
+          {help}
+        </div>
+        """.format(icon=icon_html, primary=primary_html, secondary=secondary_html, help=help_html),
+        unsafe_allow_html=True,
+    )
+
+
+def _chunk_list(items: List[Dict[str, object]], size: int) -> List[List[Dict[str, object]]]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def detect_metric_icon(name: str) -> str:
+    lowered = (name or "").lower()
+    if "在庫" in name:
+        return "dataset"
+    if "客" in name or "単価" in name:
+        return "metrics"
+    if "粗利" in name or "利益" in name:
+        return "delta"
+    if "率" in name or "YoY" in name or "成長" in name:
+        return "trend"
+    return "metrics"
+
+
+def render_metric_cards(
+    cards: List[Dict[str, object]],
+    *,
+    columns: int = 3,
+) -> None:
+    if not cards:
+        return
+    rows = _chunk_list(cards, columns)
+    for row in rows:
+        cols = st.columns(len(row))
+        for col, card in zip(cols, row):
+            icon_html = icon_svg(str(card.get("icon", "metrics")))
+            title = html.escape(str(card.get("title", "指標")))
+            subtitle = card.get("subtitle")
+            subtitle_html = (
+                f"<span class='mck-metric-card__subtitle'>{html.escape(str(subtitle))}</span>"
+                if subtitle
+                else ""
+            )
+            value = html.escape(str(card.get("value", "—")))
+            footnote = card.get("footnote")
+            footnote_html = (
+                f"<div class='mck-metric-card__footnote'>{html.escape(str(footnote))}</div>"
+                if footnote
+                else ""
+            )
+            col.markdown(
+                """
+                <div class="mck-metric-card mck-animated">
+                  <span class="mck-metric-card__icon" aria-hidden="true">{icon}</span>
+                  <div class="mck-metric-card__title">{title}</div>
+                  {subtitle}
+                  <div class="mck-metric-card__value">{value}</div>
+                  {footnote}
+                </div>
+                """.format(icon=icon_html, title=title, subtitle=subtitle_html, value=value, footnote=footnote_html),
+                unsafe_allow_html=True,
+            )
+
+
+def render_metric_bar_chart(metrics_list: List[Dict[str, object]]) -> None:
+    if not metrics_list:
+        return
+    chart_records: List[Dict[str, object]] = []
+    for metric in metrics_list:
+        value = metric.get("value")
+        if not isinstance(value, (int, float)):
+            continue
+        unit = metric.get("unit", "")
+        numeric = float(value)
+        if unit == "%":
+            numeric *= 100
+        chart_records.append(
+            {
+                "Metric": metric.get("name", "指標"),
+                "Normalized": numeric,
+                "Display": format_template_metric(metric),
+            }
+        )
+    if not chart_records:
+        return
+    chart_df = pd.DataFrame(chart_records)
+    max_abs = chart_df["Normalized"].abs().max()
+    if not math.isfinite(max_abs) or max_abs <= 0:
+        return
+    chart_df["Normalized"] = chart_df["Normalized"] / max_abs
+    fig = px.bar(
+        chart_df,
+        y="Metric",
+        x="Normalized",
+        orientation="h",
+        text="Display",
+        title="推奨KPIプレビュー（単位差を正規化）",
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(
+        xaxis_title="",
+        yaxis_title="",
+        xaxis=dict(showticklabels=False),
+        height=280,
+        margin=dict(l=10, r=10, t=46, b=30),
+    )
+    fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+    render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+    st.caption("棒グラフは単位差を補正するために正規化値を使用しています。カードの数値で実数を確認してください。")
+
+
+def render_quality_summary_panel(summary: Dict[str, object]) -> None:
+    missing = int(summary.get("missing", 0) or 0)
+    total = int(summary.get("total", 0) or 0)
+    sku_count = int(summary.get("sku_count", 0) or 0)
+    period_start = summary.get("period_start", "—")
+    period_end = summary.get("period_end", "—")
+    completeness = 1.0
+    if total > 0:
+        completeness = max(0.0, min(1.0, 1.0 - (missing / total)))
+    level = "success" if completeness >= 0.95 else ("warning" if completeness >= 0.8 else "danger")
+    icon_key = "check" if level == "success" else "alert"
+    completeness_pct = completeness * 100
+    st.markdown(
+        """
+        <div class="mck-alert mck-alert--{level} mck-animated">
+          <div class="mck-alert__icon" aria-hidden="true">{icon}</div>
+          <div class="mck-alert__content">
+            <strong>データ品質サマリー</strong>
+            <p>欠測セルと期間を自動チェックしました。下記を確認して次のステップへ進んでください。</p>
+            <div class="mck-progress">
+              <div class="mck-progress__bar" style="width:{width:.1f}%;"></div>
+            </div>
+            <div class="mck-progress__meta">完全性 {width:.1f}% ｜ 欠測 {missing:,} / {total:,}</div>
+            <ul class="mck-alert__meta">
+              <li>SKU数 {sku:,}</li>
+              <li>期間 {start} 〜 {end}</li>
+            </ul>
+          </div>
+        </div>
+        """.format(
+            level=level,
+            icon=icon_svg(icon_key),
+            width=completeness_pct,
+            missing=missing,
+            total=total,
+            sku=sku_count,
+            start=html.escape(str(period_start)),
+            end=html.escape(str(period_end)),
+        ),
+        unsafe_allow_html=True,
+    )
+
 APP_TITLE = t("header.title", language=current_language)
 st.set_page_config(
     page_title=APP_TITLE, layout="wide", initial_sidebar_state="expanded"
@@ -200,6 +470,85 @@ body, .stApp, [data-testid="stAppViewContainer"]{
 }
 [data-testid="stSidebar"] .stButton>button:hover{
   background:rgba(255,255,255,0.24);
+}
+.mck-inline-label{
+  display:flex;
+  align-items:center;
+  gap:0.75rem;
+  margin:0.2rem 0 0.6rem;
+}
+.mck-inline-label__icon{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  background:rgba(31,111,235,0.12);
+  color:var(--accent-strong);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.mck-inline-label__icon svg{
+  width:18px;
+  height:18px;
+}
+.mck-inline-label__texts{
+  display:flex;
+  flex-direction:column;
+  gap:0.1rem;
+}
+.mck-inline-label__primary{
+  font-weight:600;
+  font-size:0.98rem;
+}
+.mck-inline-label__secondary{
+  font-size:0.82rem;
+  color:var(--muted);
+}
+.mck-inline-label__help{
+  margin-left:auto;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  background:rgba(31,111,235,0.18);
+  color:var(--accent-strong);
+  font-size:0.75rem;
+  font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:help;
+  position:relative;
+  transition:background 0.2s ease;
+}
+.mck-inline-label__help:focus-visible,
+.mck-inline-label__help:hover{
+  background:rgba(31,111,235,0.28);
+}
+.mck-inline-label__help::after{
+  content:attr(data-tooltip);
+  position:absolute;
+  bottom:calc(100% + 10px);
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--ink);
+  color:#ffffff;
+  padding:0.45rem 0.65rem;
+  border-radius:8px;
+  font-size:0.78rem;
+  line-height:1.4;
+  max-width:280px;
+  box-shadow:0 12px 24px rgba(11,31,58,0.18);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity 0.2s ease;
+  white-space:pre-line;
+  z-index:2000;
+}
+.mck-inline-label__help:hover::after,
+.mck-inline-label__help:focus-visible::after{
+  opacity:1;
+  visibility:visible;
 }
 h1,h2,h3,h4{
   color:var(--ink);
@@ -375,6 +724,150 @@ small, .text-small{
   border-color:var(--accent-strong);
   color:#ffffff;
   box-shadow:0 14px 30px rgba(11,46,92,0.32);
+}
+.mck-metric-card{
+  border-radius:18px;
+  border:1px solid var(--border);
+  background:var(--panel);
+  padding:1.1rem 1.25rem;
+  box-shadow:0 18px 40px rgba(11,31,58,0.14);
+  display:flex;
+  flex-direction:column;
+  gap:0.4rem;
+  min-height:150px;
+}
+.mck-metric-card__icon{
+  width:36px;
+  height:36px;
+  border-radius:12px;
+  background:rgba(31,111,235,0.12);
+  color:var(--accent-strong);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.mck-metric-card__icon svg{
+  width:18px;
+  height:18px;
+}
+.mck-metric-card__title{
+  font-size:0.95rem;
+  font-weight:600;
+  color:var(--ink);
+}
+.mck-metric-card__subtitle{
+  font-size:0.82rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+.mck-metric-card__value{
+  font-size:1.45rem;
+  font-family:var(--font-heading);
+  color:var(--accent-strong);
+  line-height:1.2;
+}
+.mck-metric-card__footnote{
+  font-size:0.78rem;
+  color:var(--muted);
+}
+.mck-alert{
+  border-radius:18px;
+  border:1px solid transparent;
+  padding:1rem 1.2rem;
+  display:flex;
+  gap:0.9rem;
+  align-items:flex-start;
+  margin:0.6rem 0 1rem;
+}
+.mck-alert__icon{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.mck-alert__icon svg{
+  width:18px;
+  height:18px;
+}
+.mck-alert__content{
+  flex:1;
+  font-size:0.95rem;
+}
+.mck-alert__content p{
+  margin:0.2rem 0 0.6rem;
+  color:var(--ink-subtle);
+  font-size:0.9rem;
+}
+.mck-alert__meta{
+  list-style:none;
+  padding:0;
+  margin:0.8rem 0 0;
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.75rem;
+  font-size:0.82rem;
+  color:var(--muted);
+}
+.mck-alert__meta li::before{
+  content:"•";
+  margin-right:0.35rem;
+  color:currentColor;
+}
+.mck-alert--success{
+  background:rgba(31,142,94,0.12);
+  border-color:rgba(31,142,94,0.25);
+  color:#135a3d;
+}
+.mck-alert--success .mck-alert__icon{
+  background:rgba(31,142,94,0.18);
+  color:#135a3d;
+}
+.mck-alert--warning{
+  background:rgba(255,193,37,0.16);
+  border-color:rgba(255,193,37,0.32);
+  color:#6b4c00;
+}
+.mck-alert--warning .mck-alert__icon{
+  background:rgba(255,193,37,0.24);
+  color:#6b4c00;
+}
+.mck-alert--danger{
+  background:rgba(178,70,70,0.16);
+  border-color:rgba(178,70,70,0.32);
+  color:#6b1f1f;
+}
+.mck-alert--danger .mck-alert__icon{
+  background:rgba(178,70,70,0.24);
+  color:#6b1f1f;
+}
+.mck-progress{
+  width:100%;
+  height:10px;
+  border-radius:999px;
+  background:rgba(11,31,58,0.08);
+  overflow:hidden;
+  position:relative;
+}
+.mck-progress__bar{
+  height:100%;
+  background:var(--accent);
+  border-radius:999px;
+  transition:width 0.3s ease;
+}
+.mck-progress__meta{
+  margin-top:0.35rem;
+  font-size:0.82rem;
+  color:var(--muted);
+}
+.mck-animated{
+  animation:mck-fade-in 0.3s ease;
+}
+@keyframes mck-fade-in{
+  from{ opacity:0; transform:translateY(8px); }
+  to{ opacity:1; transform:translateY(0); }
 }
 .tour-banner{
   background:var(--panel);
@@ -1770,6 +2263,62 @@ def format_int(val: float | int) -> str:
         return "0"
 
 
+def render_dataset_metric_cards(
+    data_year: Optional[pd.DataFrame], end_month: Optional[str]
+) -> None:
+    if data_year is None or getattr(data_year, "empty", True) or not end_month:
+        return
+    unit = st.session_state.settings.get("currency_unit", "円")
+    kpi = aggregate_overview(data_year, end_month)
+    hhi_val = compute_hhi(data_year, end_month)
+    sku_count = int(data_year["product_code"].nunique()) if "product_code" in data_year.columns else 0
+    yoy_val = kpi.get("yoy")
+    cards: List[Dict[str, object]] = [
+        {
+            "title": "年計総額",
+            "subtitle": f"{end_month} 基準",
+            "value": format_amount(kpi.get("total_year_sum"), unit),
+            "icon": "dataset",
+        },
+        {
+            "title": "年計YoY",
+            "subtitle": "前年比", 
+            "value": f"{yoy_val * 100:.1f}%" if yoy_val is not None else "—",
+            "icon": "trend",
+        },
+        {
+            "title": "前月差(Δ)",
+            "subtitle": "モメンタム",
+            "value": format_amount(kpi.get("delta"), unit),
+            "icon": "delta",
+        },
+    ]
+    if hhi_val is not None:
+        cards.append(
+            {
+                "title": "HHI(集中度)",
+                "subtitle": "シェア分散",
+                "value": f"{hhi_val:.3f}",
+                "icon": "metrics",
+            }
+        )
+    cards.append(
+        {
+            "title": "SKU数",
+            "subtitle": "アクティブ件数",
+            "value": f"{sku_count:,}",
+            "icon": "sku",
+        }
+    )
+    render_icon_label(
+        "metrics",
+        "主要指標サマリー",
+        "Key KPI snapshot",
+        help_text="年計基準のKPIをカード形式で表示します。ダッシュボードに移動する前に全体感を把握できます。",
+    )
+    render_metric_cards(cards, columns=min(4, len(cards)))
+
+
 def nice_slider_step(max_value: int, target_steps: int = 40) -> int:
     """Return an intuitive step size so sliders move in round increments."""
     if max_value <= 0:
@@ -3119,6 +3668,7 @@ def import_section(
     accent_class = f" mck-import-section--{accent}" if accent else ""
     outer = st.container()
     with outer:
+        icon_html = icon if icon else ""
         st.markdown(
             """
             <section class="mck-import-section{accent_class}" data-section="{number:02d}">
@@ -3134,7 +3684,7 @@ def import_section(
             """.format(
                 accent_class=accent_class,
                 number=number,
-                icon=html.escape(icon),
+                icon=icon_html,
                 title_ja=html.escape(title_ja),
                 title_en=html.escape(title_en),
             ),
@@ -3237,7 +3787,7 @@ def render_import_stepper() -> None:
     steps.append(
         {
             "key": "template",
-            "icon": "🧩",
+            "icon": icon_svg("template"),
             "label": "テンプレート選択",
             "label_en": "Template Selection",
             "status": status_template,
@@ -3272,7 +3822,7 @@ def render_import_stepper() -> None:
     steps.append(
         {
             "key": "upload",
-            "icon": "📤",
+            "icon": icon_svg("upload"),
             "label": "データアップロード",
             "label_en": "Data Upload",
             "status": status_upload,
@@ -3310,7 +3860,7 @@ def render_import_stepper() -> None:
     steps.append(
         {
             "key": "quality",
-            "icon": "🔍",
+            "icon": icon_svg("quality"),
             "label": "データチェック",
             "label_en": "Data Quality Review",
             "status": status_quality,
@@ -3338,7 +3888,7 @@ def render_import_stepper() -> None:
     steps.append(
         {
             "key": "report",
-            "icon": "📈",
+            "icon": icon_svg("download"),
             "label": "レポート出力",
             "label_en": "Report Output",
             "status": status_report,
@@ -3376,7 +3926,7 @@ def render_import_stepper() -> None:
             """.format(
                 status=html.escape(str(status)),
                 aria_current=aria_current,
-                icon=html.escape(str(step.get("icon", ""))),
+                icon=step.get("icon", ""),
                 label=html.escape(str(step.get("label", ""))),
                 label_en=html.escape(str(step.get("label_en", ""))),
                 state=html.escape(state_label),
@@ -3954,11 +4504,17 @@ if page == "データ取込":
     template_config = get_template_config(active_template)
 
     with import_section(
-        1, "テンプレート選択", "Template Selection", "🧩", accent="template"
+        1, "テンプレート選択", "Template Selection", icon_svg("template"), accent="template"
     ):
         st.caption(
             """業種テンプレートを選ぶと推奨科目や指標、閾値が自動セットされます。
 Select an industry template to preload recommended fields, metrics, and thresholds."""
+        )
+        render_icon_label(
+            "template",
+            "業種別テンプレート",
+            "Industry template",
+            help_text="業種を選ぶと推奨科目や指標、閾値が自動セットされ入力工数を削減できます。",
         )
         selected_template = st.selectbox(
             "業種別テンプレート / Industry template",
@@ -3968,6 +4524,7 @@ Select an industry template to preload recommended fields, metrics, and threshol
                 "label", key
             ),
             help="業種を選ぶと推奨科目や指標、閾値が自動セットされ入力工数を削減できます。/ Choosing an industry applies recommended KPIs and thresholds automatically.",
+            label_visibility="collapsed",
         )
         if selected_template != active_template:
             apply_industry_template(selected_template)
@@ -3993,7 +4550,7 @@ Applying the template aims to cut manual setup time by about 50% (30 min → und
             )
 
     with import_section(
-        2, "推奨項目と指標", "Recommended Fields & Metrics", "🧠", accent="metrics"
+        2, "推奨項目と指標", "Recommended Fields & Metrics", icon_svg("metrics"), accent="metrics"
     ):
         st.caption(
             """推奨項目・指標をチェックリストとして活用し、入力漏れを防ぎましょう。
@@ -4001,9 +4558,14 @@ Use the recommended fields and metrics as a checklist to prevent omissions."""
         )
         fields = template_config.get("fields", [])
         metrics_list = template_config.get("recommended_metrics", [])
-        col_fields, col_metrics = st.columns(2)
+        col_fields, col_metrics = st.columns([1, 2])
         with col_fields:
-            st.markdown("**推奨項目 / Recommended columns**")
+            render_icon_label(
+                "template",
+                "推奨項目",
+                "Recommended columns",
+                help_text="テンプレートに含めるべき列を確認し、アップロード前の抜け漏れを防ぎます。",
+            )
             if fields:
                 for field in fields:
                     field_html = html.escape(str(field))
@@ -4017,34 +4579,39 @@ Use the recommended fields and metrics as a checklist to prevent omissions."""
 No additional recommended columns in this template."""
                 )
         with col_metrics:
-            st.markdown("**自動計算される指標 / Auto-calculated metrics**")
+            render_icon_label(
+                "metrics",
+                "自動計算される指標",
+                "Auto-calculated metrics",
+                help_text="テンプレートが想定する代表的な指標です。カードで値を確認し、ターゲットのイメージを掴みましょう。",
+            )
             if metrics_list:
+                metric_cards: List[Dict[str, object]] = []
                 for metric in metrics_list:
-                    name = metric.get("name", "指標")
-                    value_text = format_template_metric(metric)
-                    desc = metric.get("description", "")
-                    name_html = html.escape(str(name))
-                    value_html = html.escape(str(value_text))
-                    desc_html = html.escape(str(desc)) if desc else ""
-                    line_html = f"- <strong>{name_html}</strong>: {value_html}"
-                    if desc_html:
-                        line_html += f" （{desc_html}）"
-                    line_html += (
-                        "<br><span class='mck-import-section__hint'>"
-                        f"Auto metric: {name_html} ({value_html})."
-                        "</span>"
+                    metric_cards.append(
+                        {
+                            "title": metric.get("name", "指標"),
+                            "subtitle": "Template KPI",
+                            "value": format_template_metric(metric),
+                            "icon": detect_metric_icon(metric.get("name", "")),
+                            "footnote": metric.get("description", ""),
+                        }
                     )
-                    if desc_html:
-                        line_html += (
-                            f"<span class='mck-import-section__note'>Detail (JP): {desc_html}</span>"
-                        )
-                    st.markdown(line_html, unsafe_allow_html=True)
+                render_metric_cards(metric_cards, columns=min(2, len(metric_cards)))
             else:
                 st.caption(
                     """テンプレートに紐づく指標はありません。
 No auto-calculated metrics are linked to this template."""
                 )
+        if metrics_list:
+            render_metric_bar_chart(metrics_list)
         template_bytes = build_industry_template_csv(active_template)
+        render_icon_label(
+            "download",
+            "CSVテンプレートをダウンロード",
+            "Download CSV template",
+            help_text="推奨科目と月度列を含むテンプレートをダウンロードし、社内で共有できます。",
+        )
         st.download_button(
             "CSVテンプレートをダウンロード / Download CSV template",
             data=template_bytes,
@@ -4062,7 +4629,7 @@ No auto-calculated metrics are linked to this template."""
     )
 
     with import_section(
-        3, "ファイルアップロード", "Data Upload", "📤", accent="upload"
+        3, "ファイルアップロード", "Data Upload", icon_svg("upload"), accent="upload"
     ):
         st.markdown(
             "**Excel(.xlsx) / CSV をアップロードしてください。**<br>"
@@ -4074,7 +4641,12 @@ No auto-calculated metrics are linked to this template."""
             "<span class='mck-import-section__hint'>Include month columns in YYYY-MM format and provide numeric values in standard digits.</span>",
             unsafe_allow_html=True,
         )
-        with st.expander("CSVの列構成を確認する / Review column layout", expanded=False):
+        if "import_layout_expanded" not in st.session_state:
+            st.session_state.import_layout_expanded = True
+        with st.expander(
+            "CSVの列構成を確認する / Review column layout",
+            expanded=st.session_state.get("import_layout_expanded", True),
+        ):
             st.markdown(
                 "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように名称・コード列の後に月次列を並べてください。<br>"
                 "Example: place month columns after name/code columns such as `Product Name, Product Code, 2022-01, 2022-02, ...`.",
@@ -4082,12 +4654,25 @@ No auto-calculated metrics are linked to this template."""
             )
         col_u1, col_u2 = st.columns([2, 1])
         with col_u1:
+            render_icon_label(
+                "upload",
+                "ファイル選択",
+                "Choose file",
+                help_text="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。",
+            )
             file = st.file_uploader(
                 "ファイル選択 / Choose file",
                 type=["xlsx", "csv"],
                 help="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。/ Select the monthly dataset to import.",
+                label_visibility="collapsed",
             )
         with col_u2:
+            render_icon_label(
+                "policy",
+                "欠測月ポリシー",
+                "Missing month policy",
+                help_text="ゼロ補完は欠測を0で補完し、欠測保持は空欄のまま残して計算対象外とします。",
+            )
             missing_policy = st.selectbox(
                 "欠測月ポリシー / Missing month policy",
                 options=missing_policy_options,
@@ -4096,8 +4681,21 @@ No auto-calculated metrics are linked to this template."""
                 if x == "zero_fill"
                 else "欠測を保持 / Keep missing months as blank",
                 help="欠測月の扱いを選択します。/ Choose how missing months should be treated during calculations.",
+                label_visibility="collapsed",
             )
             st.session_state.settings["missing_policy"] = missing_policy
+            st.session_state.import_policy_expanded = missing_policy == "mark_missing"
+
+        policy_help_expanded = st.session_state.get("import_policy_expanded", False)
+        with st.expander(
+            "欠測月ポリシーの比較 / Missing policy guide",
+            expanded=policy_help_expanded,
+        ):
+            st.markdown(
+                "- **ゼロ補完**: 欠測月を 0 で補完し、年計の継続性を保ちます。<br>"
+                "- **欠測保持**: 欠測月を空欄のまま残し、該当期間の年計を除外します。",
+                unsafe_allow_html=True,
+            )
 
         if file is not None:
             try:
@@ -4174,34 +4772,37 @@ Import completed. Open the dashboard pages to review the visuals."""
                 except Exception as e:
                     st.exception(e)
 
+            st.session_state.import_layout_expanded = False
+        else:
+            st.session_state.import_layout_expanded = True
+            st.caption(
+                """CSV/XLSXの形式チェックとカラムマッピングを行ったあと、年計データを生成します。
+After validating and mapping the CSV/XLSX, yearly KPIs will be calculated automatically."""
+            )
+
     quality_summary = st.session_state.get("import_quality_summary")
     data_year = st.session_state.get("data_year")
 
     with import_section(
-        4, "データチェック", "Data Quality Review", "🔍", accent="quality"
+        4, "データチェック", "Data Quality Review", icon_svg("quality"), accent="quality"
     ):
+        latest_month = None
+        if data_year is not None and not getattr(data_year, "empty", True) and "month" in data_year.columns:
+            try:
+                latest_month = data_year["month"].astype(str).max()
+            except Exception:
+                latest_month = None
+
         if quality_summary:
-            miss = quality_summary.get("missing", 0)
-            total = quality_summary.get("total", 0)
-            sku_count = quality_summary.get("sku_count", 0)
-            period_start = quality_summary.get("period_start", "—")
-            period_end = quality_summary.get("period_end", "—")
-            st.markdown(
-                f"- **欠測セル数**: {miss:,} / {total:,}<br>"
-                f"<span class='mck-import-section__hint'>Missing cells: {miss:,} / {total:,}</span>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"- **SKU数**: {sku_count:,}<br>"
-                f"<span class='mck-import-section__hint'>SKU count: {sku_count:,}</span>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                f"- **データ期間**: {period_start} 〜 {period_end}<br>"
-                f"<span class='mck-import-section__hint'>Coverage: {period_start} to {period_end}</span>",
-                unsafe_allow_html=True,
-            )
+            render_quality_summary_panel(quality_summary)
             if data_year is not None and not data_year.empty:
+                render_dataset_metric_cards(data_year, latest_month)
+                render_icon_label(
+                    "download",
+                    "年計テーブルをCSVでダウンロード",
+                    "Download yearly table",
+                    help_text="年計やYoYの計算結果をCSVで保存し、他部署と共有できます。",
+                )
                 download_clicked = st.download_button(
                     "年計テーブルをCSVでダウンロード / Download yearly table (CSV)",
                     data=data_year.to_csv(index=False).encode("utf-8-sig"),
@@ -4216,6 +4817,13 @@ Import completed. Open the dashboard pages to review the visuals."""
 Move to the dashboard or ranking pages to use AI summaries and PDF exports."""
             )
         elif data_year is not None and not data_year.empty:
+            render_dataset_metric_cards(data_year, latest_month)
+            render_icon_label(
+                "download",
+                "年計テーブルをCSVでダウンロード",
+                "Download yearly table",
+                help_text="品質サマリー計算中でも最新の年計テーブルを取得できます。",
+            )
             download_clicked = st.download_button(
                 "年計テーブルをCSVでダウンロード / Download yearly table (CSV)",
                 data=data_year.to_csv(index=False).encode("utf-8-sig"),
