@@ -742,6 +742,19 @@ small, .text-small{
   color:#ffffff;
   box-shadow:0 14px 30px rgba(11,46,92,0.32);
 }
+[data-testid="stFileUploaderDropzoneInstructions"] > :first-child{
+  width:48px;
+  height:48px;
+  min-width:48px;
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] svg{
+  width:28px !important;
+  height:28px !important;
+}
 .mck-metric-card{
   border-radius:18px;
   border:1px solid var(--border);
