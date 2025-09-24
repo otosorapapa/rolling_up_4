@@ -5,7 +5,7 @@ import math
 import textwrap
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Iterable
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -2484,6 +2484,1148 @@ def render_dataset_metric_cards(
         help_text="年計基準のKPIをカード形式で表示します。ダッシュボードに移動する前に全体感を把握できます。",
     )
     render_metric_cards(cards, columns=min(4, len(cards)))
+
+
+def _detect_column(
+    df: Optional[pd.DataFrame], candidates: List[str]
+) -> Optional[str]:
+    if df is None or getattr(df, "empty", True):
+        return None
+    for name in candidates:
+        if name in df.columns:
+            return name
+    return None
+
+
+def _resolve_store_options(
+    df: Optional[pd.DataFrame],
+) -> Tuple[List[str], Optional[str]]:
+    store_column = _detect_column(
+        df,
+        ["店舗", "店舗名", "store", "Store", "支店", "location", "branch"],
+    )
+    if not store_column:
+        return ["全体"], None
+    values = (
+        df[store_column]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .replace({"": None})
+        .dropna()
+        .unique()
+        .tolist()
+    )
+    values = sorted(values)
+    return ["全体"] + values, store_column
+
+
+def _detect_channel_column(df: Optional[pd.DataFrame]) -> Optional[str]:
+    return _detect_column(
+        df,
+        [
+            "チャネル",
+            "販売チャネル",
+            "channel",
+            "Channel",
+            "チャネル区分",
+        ],
+    )
+
+
+def _filter_monthly_data(
+    df: Optional[pd.DataFrame],
+    *,
+    end_month: Optional[str],
+    months: Optional[int],
+    store_column: Optional[str] = None,
+    store_value: Optional[str] = None,
+) -> pd.DataFrame:
+    if df is None or getattr(df, "empty", True):
+        return pd.DataFrame(
+            columns=["product_code", "product_name", "month", "sales_amount_jpy"]
+        )
+
+    filtered = df.copy()
+    filtered["month"] = filtered["month"].astype(str)
+    if store_column and store_value and store_value != "全体":
+        filtered = filtered[
+            filtered[store_column].astype(str).str.strip() == str(store_value)
+        ]
+
+    filtered["month_dt"] = pd.to_datetime(filtered["month"], errors="coerce")
+    filtered = filtered.dropna(subset=["month_dt"])
+    filtered = filtered.sort_values("month_dt")
+
+    if filtered.empty:
+        return filtered
+
+    if end_month:
+        end_dt = pd.to_datetime(end_month, errors="coerce")
+    else:
+        end_dt = filtered["month_dt"].max()
+
+    if pd.isna(end_dt):
+        end_dt = filtered["month_dt"].max()
+
+    if months and months > 0:
+        start_dt = end_dt - pd.DateOffset(months=months - 1)
+        mask = (filtered["month_dt"] >= start_dt) & (filtered["month_dt"] <= end_dt)
+        filtered = filtered.loc[mask]
+
+    return filtered.reset_index(drop=True)
+
+
+def _prepare_monthly_trend(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(
+            columns=[
+                "month_dt",
+                "month",
+                "sales_amount_jpy",
+                "delta",
+                "yoy",
+            ]
+        )
+    monthly = (
+        df.groupby("month_dt", as_index=False)["sales_amount_jpy"].sum().sort_values(
+            "month_dt"
+        )
+    )
+    monthly["month"] = monthly["month_dt"].dt.strftime("%Y-%m")
+    monthly["delta"] = monthly["sales_amount_jpy"].diff()
+    monthly["yoy"] = monthly["sales_amount_jpy"].pct_change(periods=12)
+    return monthly
+
+
+def _sorted_months(df: Optional[pd.DataFrame]) -> List[str]:
+    if df is None or getattr(df, "empty", True) or "month" not in df.columns:
+        return []
+    months = df["month"].dropna().astype(str).unique().tolist()
+    return sorted(months)
+
+
+def _previous_month(months: List[str], current: Optional[str]) -> Optional[str]:
+    if not months or not current:
+        return None
+    try:
+        idx = months.index(current)
+    except ValueError:
+        return None
+    if idx <= 0:
+        return None
+    return months[idx - 1]
+
+
+def _find_ratio(items: Iterable[Dict[str, object]], keywords: Iterable[str]) -> float:
+    for item in items or []:
+        label = str(item.get("item", "")).lower()
+        for keyword in keywords:
+            if keyword.lower() in label:
+                try:
+                    return float(item.get("ratio", 0.0))
+                except (TypeError, ValueError):
+                    return 0.0
+    return 0.0
+
+
+def _monthly_year_totals(df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    if df is None or getattr(df, "empty", True):
+        return pd.DataFrame(columns=["month", "year_sum", "month_dt", "delta"])
+    totals = (
+        df.groupby("month", as_index=False)["year_sum"].sum().sort_values("month")
+    )
+    totals["month_dt"] = pd.to_datetime(totals["month"], errors="coerce")
+    totals["delta"] = totals["year_sum"].diff()
+    return totals
+
+
+def _compute_financial_snapshot(
+    year_df: Optional[pd.DataFrame],
+    month: Optional[str],
+    profile: Optional[Dict[str, object]],
+) -> Dict[str, object]:
+    base_snapshot = {
+        "revenue": 0.0,
+        "cogs": 0.0,
+        "gross_profit": 0.0,
+        "gross_margin_rate": None,
+        "assets_total": 0.0,
+        "cash_balance": 0.0,
+        "inventory_balance": 0.0,
+        "cash_flows": [],
+        "net_cash_flow": 0.0,
+    }
+    if (
+        year_df is None
+        or getattr(year_df, "empty", True)
+        or not month
+        or not profile
+    ):
+        return base_snapshot
+
+    snapshot = year_df[year_df["month"] == month].dropna(subset=["year_sum"])
+    total_revenue = float(snapshot["year_sum"].sum())
+    if total_revenue <= 0:
+        return base_snapshot
+
+    cogs_ratio = float(profile.get("cogs_ratio", 0.6) or 0.0)
+    asset_turnover = float(profile.get("asset_turnover", 2.5) or 0.0)
+    gross_profit = total_revenue * (1 - cogs_ratio)
+    gross_margin_rate = gross_profit / total_revenue if total_revenue else None
+    assets_total = (
+        total_revenue / asset_turnover if asset_turnover else total_revenue
+    )
+    cash_ratio = _find_ratio(profile.get("balance_assets", []), ["現金", "cash"])
+    inventory_ratio = _find_ratio(
+        profile.get("balance_assets", []),
+        ["棚卸", "inventory", "在庫"],
+    )
+    cash_balance = assets_total * cash_ratio
+    inventory_balance = assets_total * inventory_ratio
+
+    cash_flows: List[Dict[str, object]] = []
+    net_cash = 0.0
+    for item in profile.get("cash_flow", []):
+        label = item.get("item", "キャッシュフロー")
+        try:
+            ratio = float(item.get("ratio", 0.0))
+        except (TypeError, ValueError):
+            ratio = 0.0
+        amount = total_revenue * ratio
+        net_cash += amount
+        cash_flows.append({"item": label, "amount": amount, "ratio": ratio})
+
+    return {
+        "revenue": total_revenue,
+        "cogs": total_revenue * cogs_ratio,
+        "gross_profit": gross_profit,
+        "gross_margin_rate": gross_margin_rate,
+        "assets_total": assets_total,
+        "cash_balance": cash_balance,
+        "inventory_balance": inventory_balance,
+        "cash_flows": cash_flows,
+        "net_cash_flow": net_cash,
+    }
+
+
+def _render_sales_tab(
+    *,
+    filtered_monthly: pd.DataFrame,
+    monthly_trend: pd.DataFrame,
+    unit: str,
+    end_month: Optional[str],
+    year_df: Optional[pd.DataFrame],
+    channel_column: Optional[str],
+) -> None:
+    unit_scale = UNIT_MAP.get(unit, 1)
+    st.markdown("##### 指標カード")
+    metric_cols = st.columns(3)
+
+    snapshot_month = end_month
+    if not snapshot_month and not monthly_trend.empty:
+        snapshot_month = monthly_trend["month"].iloc[-1]
+
+    if not monthly_trend.empty:
+        latest = monthly_trend.iloc[-1]
+        prev = monthly_trend.iloc[-2] if len(monthly_trend) > 1 else None
+        monthly_value = float(latest.get("sales_amount_jpy", 0.0) or 0.0)
+        delta_value = latest.get("delta")
+        yoy_value = latest.get("yoy")
+        delta_label = (
+            format_amount(delta_value, unit) if delta_value is not None else None
+        )
+        metric_cols[0].metric(
+            "月次売上",
+            format_amount(monthly_value, unit),
+            delta=delta_label,
+        )
+        yoy_label = f"{yoy_value * 100:.1f}%" if pd.notna(yoy_value) else "—"
+        yoy_delta = None
+        if (
+            prev is not None
+            and pd.notna(prev.get("yoy"))
+            and pd.notna(yoy_value)
+        ):
+            yoy_delta = f"{(yoy_value - prev.get('yoy', 0.0)) * 100:.1f}pt"
+        metric_cols[1].metric("前年同月比", yoy_label, delta=yoy_delta)
+    else:
+        for col in metric_cols[:2]:
+            col.metric("—", "—")
+
+    snapshot = pd.DataFrame()
+    if snapshot_month:
+        snapshot = filtered_monthly[filtered_monthly["month"] == snapshot_month]
+    if snapshot.empty and not filtered_monthly.empty:
+        fallback_month = filtered_monthly["month"].iloc[-1]
+        snapshot = filtered_monthly[filtered_monthly["month"] == fallback_month]
+
+    top_share = None
+    if not snapshot.empty:
+        product_totals = (
+            snapshot.groupby(["product_code", "product_name"], as_index=False)[
+                "sales_amount_jpy"
+            ]
+            .sum()
+            .sort_values("sales_amount_jpy", ascending=False)
+        )
+        total_snapshot = float(product_totals["sales_amount_jpy"].sum())
+        if total_snapshot > 0 and not product_totals.empty:
+            top_share = (
+                product_totals.iloc[0]["sales_amount_jpy"] / total_snapshot * 100.0
+            )
+    metric_cols[2].metric(
+        "トップ商品構成比",
+        f"{top_share:.1f}%" if top_share is not None else "—",
+    )
+
+    st.markdown("##### トレンド")
+    if monthly_trend.empty:
+        st.info("表示できる売上データがありません。")
+    else:
+        trend_display = monthly_trend.copy()
+        trend_display["売上"] = trend_display["sales_amount_jpy"] / unit_scale
+        fig = px.line(trend_display, x="month", y="売上", markers=True)
+        fig.update_yaxes(title=f"売上 ({unit})", tickformat=",.0f")
+        fig.update_xaxes(title="月")
+        fig.update_layout(height=420, margin=dict(l=10, r=10, t=40, b=10))
+        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+
+    st.markdown("##### 構成分析")
+    comp_cols = st.columns(2)
+
+    with comp_cols[0]:
+        st.markdown("###### 商品別")
+        if snapshot.empty:
+            st.info("選択した期間のデータがありません。")
+        else:
+            product_comp = (
+                snapshot.groupby(["product_code", "product_name"], as_index=False)[
+                    "sales_amount_jpy"
+                ]
+                .sum()
+                .sort_values("sales_amount_jpy", ascending=False)
+            )
+            total_amount = float(product_comp["sales_amount_jpy"].sum())
+            if total_amount <= 0:
+                st.info("売上構成を表示できません。")
+            else:
+                product_comp["シェア"] = (
+                    product_comp["sales_amount_jpy"] / total_amount * 100.0
+                )
+                product_comp["表示額"] = (
+                    product_comp["sales_amount_jpy"] / unit_scale
+                )
+                top_products = product_comp.head(10)
+                fig_prod = px.bar(
+                    top_products.sort_values("表示額"),
+                    x="表示額",
+                    y="product_name",
+                    orientation="h",
+                    text=top_products["シェア"].map(lambda v: f"{v:.1f}%"),
+                )
+                fig_prod.update_layout(
+                    height=380,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title=f"売上 ({unit})",
+                    yaxis_title="",
+                )
+                fig_prod = apply_elegant_theme(
+                    fig_prod, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(fig_prod, config=PLOTLY_CONFIG)
+
+    with comp_cols[1]:
+        st.markdown("###### チャネル別")
+        if not channel_column or channel_column not in snapshot.columns:
+            st.info("チャネル情報が含まれていません。")
+        else:
+            channel_comp = (
+                snapshot.groupby(channel_column, as_index=False)["sales_amount_jpy"].sum()
+            )
+            total_channel = float(channel_comp["sales_amount_jpy"].sum())
+            if total_channel <= 0:
+                st.info("チャネル別構成を表示できません。")
+            else:
+                channel_comp["シェア"] = (
+                    channel_comp["sales_amount_jpy"] / total_channel * 100.0
+                )
+                channel_comp["表示額"] = (
+                    channel_comp["sales_amount_jpy"] / unit_scale
+                )
+                fig_channel = px.pie(
+                    channel_comp,
+                    names=channel_column,
+                    values="表示額",
+                    hole=0.35,
+                )
+                fig_channel.update_traces(
+                    textposition="inside",
+                    texttemplate="%{label}<br>%{percent:.1%}",
+                )
+                fig_channel.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
+                fig_channel = apply_elegant_theme(
+                    fig_channel, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(fig_channel, config=PLOTLY_CONFIG)
+
+    st.markdown("##### 明細テーブル")
+    with st.expander("売上明細を表示", expanded=False):
+        snapshot_year = pd.DataFrame()
+        if (
+            year_df is not None
+            and not getattr(year_df, "empty", True)
+            and snapshot_month
+        ):
+            snapshot_year = year_df[year_df["month"] == snapshot_month].dropna(
+                subset=["year_sum"]
+            )
+
+        month_totals = pd.DataFrame()
+        if not snapshot.empty:
+            month_totals = snapshot.groupby(
+                ["product_code", "product_name"], as_index=False
+            )["sales_amount_jpy"].sum()
+
+        if snapshot_year.empty and month_totals.empty:
+            st.info("表示できる明細がありません。")
+        else:
+            if snapshot_year.empty:
+                detail_df = month_totals.copy()
+                detail_df["year_sum"] = np.nan
+                detail_df["yoy"] = np.nan
+                detail_df["delta"] = np.nan
+            else:
+                detail_df = snapshot_year[[
+                    "product_code",
+                    "product_name",
+                    "year_sum",
+                    "yoy",
+                    "delta",
+                ]].copy()
+                if not month_totals.empty:
+                    detail_df = detail_df.merge(
+                        month_totals,
+                        on=["product_code", "product_name"],
+                        how="left",
+                    )
+                else:
+                    detail_df["sales_amount_jpy"] = np.nan
+
+            detail_df["sales_amount_jpy"] = detail_df["sales_amount_jpy"].fillna(0.0)
+            total_month = float(detail_df["sales_amount_jpy"].sum())
+            detail_df["share"] = (
+                detail_df["sales_amount_jpy"] / total_month
+                if total_month > 0
+                else 0.0
+            )
+
+            display_df = pd.DataFrame(
+                {
+                    "商品コード": detail_df["product_code"],
+                    "商品名": detail_df["product_name"],
+                    f"月次売上({unit})": detail_df["sales_amount_jpy"] / unit_scale,
+                    f"年計({unit})": detail_df["year_sum"] / unit_scale,
+                    "シェア(%)": detail_df["share"] * 100.0,
+                    "前年同月比(%)": detail_df["yoy"] * 100.0,
+                    f"前月差({unit})": detail_df["delta"] / unit_scale,
+                }
+            )
+
+            st.dataframe(
+                display_df.style.format(
+                    {
+                        f"月次売上({unit})": "{:,.0f}",
+                        f"年計({unit})": "{:,.0f}",
+                        "シェア(%)": "{:.1f}%",
+                        "前年同月比(%)": "{:.1f}%",
+                        f"前月差({unit})": "{:,.0f}",
+                    }
+                ),
+                use_container_width=True,
+            )
+
+            csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "CSVダウンロード",
+                data=csv_data,
+                file_name="sales_detail.csv",
+                mime="text/csv",
+            )
+
+
+def _render_gross_profit_tab(
+    *,
+    filtered_monthly: pd.DataFrame,
+    monthly_trend: pd.DataFrame,
+    unit: str,
+    end_month: Optional[str],
+    profile: Optional[Dict[str, object]],
+    year_df: Optional[pd.DataFrame],
+) -> None:
+    unit_scale = UNIT_MAP.get(unit, 1)
+    gross_ratio = 1.0 - float(profile.get("cogs_ratio", 0.6) or 0.0)
+    st.markdown("##### 指標カード")
+    metric_cols = st.columns(3)
+
+    snapshot_month = end_month
+    if not snapshot_month and not monthly_trend.empty:
+        snapshot_month = monthly_trend["month"].iloc[-1]
+
+    gross_trend = monthly_trend.copy()
+    if not gross_trend.empty:
+        gross_trend["gross_amount"] = gross_trend["sales_amount_jpy"] * gross_ratio
+        gross_trend["gross_display"] = gross_trend["gross_amount"] / unit_scale
+        gross_trend["gross_delta"] = gross_trend["gross_amount"].diff()
+        gross_trend["margin_pct"] = np.where(
+            gross_trend["sales_amount_jpy"] > 0,
+            gross_trend["gross_amount"] / gross_trend["sales_amount_jpy"] * 100.0,
+            np.nan,
+        )
+
+        latest = gross_trend.iloc[-1]
+        prev = gross_trend.iloc[-2] if len(gross_trend) > 1 else None
+
+        metric_cols[0].metric(
+            "月次粗利",
+            format_amount(float(latest.get("gross_amount", 0.0)), unit),
+            delta=(
+                format_amount(latest.get("gross_delta"), unit)
+                if pd.notna(latest.get("gross_delta"))
+                else None
+            ),
+        )
+
+        margin_label = (
+            f"{latest.get('margin_pct', 0.0):.1f}%"
+            if pd.notna(latest.get("margin_pct"))
+            else "—"
+        )
+        margin_delta = None
+        if (
+            prev is not None
+            and pd.notna(prev.get("margin_pct"))
+            and pd.notna(latest.get("margin_pct"))
+        ):
+            margin_delta = f"{latest.get('margin_pct', 0.0) - prev.get('margin_pct', 0.0):.1f}pt"
+        metric_cols[1].metric("粗利率", margin_label, delta=margin_delta)
+    else:
+        for col in metric_cols[:2]:
+            col.metric("—", "—")
+
+    snapshot_year = pd.DataFrame()
+    if (
+        year_df is not None
+        and not getattr(year_df, "empty", True)
+        and snapshot_month
+    ):
+        snapshot_year = year_df[year_df["month"] == snapshot_month].dropna(
+            subset=["year_sum"]
+        )
+
+    if not snapshot_year.empty:
+        year_gross = snapshot_year["year_sum"].sum() * gross_ratio
+        prev_month = _previous_month(_sorted_months(year_df), snapshot_month)
+        prev_year = pd.DataFrame()
+        if prev_month:
+            prev_year = year_df[year_df["month"] == prev_month].dropna(
+                subset=["year_sum"]
+            )
+        prev_gross = prev_year["year_sum"].sum() * gross_ratio if not prev_year.empty else None
+        gross_delta = None
+        if prev_gross is not None:
+            gross_delta = format_amount(year_gross - prev_gross, unit)
+        metric_cols[2].metric(
+            "粗利年計",
+            format_amount(year_gross, unit),
+            delta=gross_delta,
+        )
+    else:
+        metric_cols[2].metric("粗利年計", "—")
+
+    st.markdown("##### 粗利額と粗利率の推移")
+    if gross_trend.empty:
+        st.info("表示できる粗利データがありません。")
+    else:
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=gross_trend["month"],
+                y=gross_trend["gross_display"],
+                name="粗利額",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=gross_trend["month"],
+                y=gross_trend["margin_pct"],
+                name="粗利率",
+                mode="lines+markers",
+                yaxis="y2",
+            )
+        )
+        fig.update_layout(
+            height=420,
+            margin=dict(l=10, r=10, t=40, b=10),
+            yaxis=dict(title=f"粗利額 ({unit})", tickformat=",.0f"),
+            yaxis2=dict(title="粗利率(%)", overlaying="y", side="right"),
+            barmode="relative",
+        )
+        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+
+    snapshot = pd.DataFrame()
+    if snapshot_month:
+        snapshot = filtered_monthly[filtered_monthly["month"] == snapshot_month]
+    if snapshot.empty and not filtered_monthly.empty:
+        fallback = filtered_monthly["month"].iloc[-1]
+        snapshot = filtered_monthly[filtered_monthly["month"] == fallback]
+
+    st.markdown("##### 構成分析")
+    comp_cols = st.columns(2)
+    with comp_cols[0]:
+        st.markdown("###### 商品別粗利")
+        if snapshot.empty:
+            st.info("対象月のデータがありません。")
+        else:
+            prod_gross = (
+                snapshot.groupby(["product_code", "product_name"], as_index=False)[
+                    "sales_amount_jpy"
+                ]
+                .sum()
+                .sort_values("sales_amount_jpy", ascending=False)
+            )
+            prod_gross["gross_amount"] = prod_gross["sales_amount_jpy"] * gross_ratio
+            total_gross = float(prod_gross["gross_amount"].sum())
+            if total_gross <= 0:
+                st.info("粗利構成を表示できません。")
+            else:
+                prod_gross["表示額"] = prod_gross["gross_amount"] / unit_scale
+                prod_gross["シェア"] = prod_gross["gross_amount"] / total_gross * 100.0
+                fig_prod = px.bar(
+                    prod_gross.head(10).sort_values("表示額"),
+                    x="表示額",
+                    y="product_name",
+                    orientation="h",
+                    text=prod_gross.head(10)["シェア"].map(lambda v: f"{v:.1f}%"),
+                )
+                fig_prod.update_layout(
+                    height=380,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title=f"粗利額 ({unit})",
+                    yaxis_title="",
+                )
+                fig_prod = apply_elegant_theme(
+                    fig_prod, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(fig_prod, config=PLOTLY_CONFIG)
+
+    with comp_cols[1]:
+        st.markdown("###### 粗利率の推移 (トップ商品)")
+        if snapshot.empty or snapshot_month is None:
+            st.info("粗利率の推移を表示できません。")
+        else:
+            top_codes = (
+                snapshot.groupby("product_code")["sales_amount_jpy"].sum()
+                .sort_values(ascending=False)
+                .head(3)
+                .index.tolist()
+            )
+            if not top_codes:
+                st.info("表示できる商品がありません。")
+            else:
+                history = filtered_monthly[
+                    filtered_monthly["product_code"].isin(top_codes)
+                ].copy()
+                history["gross_margin"] = np.where(
+                    history["sales_amount_jpy"] > 0,
+                    gross_ratio * 100.0,
+                    np.nan,
+                )
+                if history.empty:
+                    st.info("粗利率のデータがありません。")
+                else:
+                    fig_margin = px.line(
+                        history,
+                        x="month",
+                        y="gross_margin",
+                        color="product_name",
+                        markers=True,
+                    )
+                    fig_margin.update_layout(
+                        height=380,
+                        margin=dict(l=10, r=10, t=30, b=10),
+                        yaxis_title="粗利率(%)",
+                        xaxis_title="月",
+                    )
+                    fig_margin = apply_elegant_theme(
+                        fig_margin, theme=st.session_state.get("ui_theme", "light")
+                    )
+                    render_plotly_with_spinner(fig_margin, config=PLOTLY_CONFIG)
+
+    st.markdown("##### 明細テーブル")
+    with st.expander("粗利明細を表示", expanded=False):
+        if snapshot_year.empty:
+            st.info("表示できる明細がありません。")
+        else:
+            detail_df = snapshot_year[[
+                "product_code",
+                "product_name",
+                "year_sum",
+                "yoy",
+                "delta",
+            ]].copy()
+            detail_df["gross_year"] = detail_df["year_sum"] * gross_ratio
+            detail_df["gross_margin"] = np.where(
+                detail_df["year_sum"] > 0,
+                detail_df["gross_year"] / detail_df["year_sum"] * 100.0,
+                np.nan,
+            )
+            month_totals = (
+                snapshot.groupby(["product_code", "product_name"], as_index=False)[
+                    "sales_amount_jpy"
+                ]
+                .sum()
+                if not snapshot.empty
+                else pd.DataFrame()
+            )
+            if not month_totals.empty:
+                month_totals["monthly_gross"] = (
+                    month_totals["sales_amount_jpy"] * gross_ratio
+                )
+                detail_df = detail_df.merge(
+                    month_totals[[
+                        "product_code",
+                        "product_name",
+                        "monthly_gross",
+                    ]],
+                    on=["product_code", "product_name"],
+                    how="left",
+                )
+            else:
+                detail_df["monthly_gross"] = np.nan
+
+            display_df = pd.DataFrame(
+                {
+                    "商品コード": detail_df["product_code"],
+                    "商品名": detail_df["product_name"],
+                    f"月次粗利({unit})": detail_df["monthly_gross"] / unit_scale,
+                    f"年計粗利({unit})": detail_df["gross_year"] / unit_scale,
+                    "粗利率(%)": detail_df["gross_margin"],
+                    "前年同月比(%)": detail_df["yoy"] * 100.0,
+                    f"前月差({unit})": detail_df["delta"] * gross_ratio / unit_scale,
+                }
+            )
+
+            st.dataframe(
+                display_df.style.format(
+                    {
+                        f"月次粗利({unit})": "{:,.0f}",
+                        f"年計粗利({unit})": "{:,.0f}",
+                        "粗利率(%)": "{:.1f}%",
+                        "前年同月比(%)": "{:.1f}%",
+                        f"前月差({unit})": "{:,.0f}",
+                    }
+                ),
+                use_container_width=True,
+            )
+
+            csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "CSVダウンロード",
+                data=csv_data,
+                file_name="gross_profit_detail.csv",
+                mime="text/csv",
+            )
+
+
+def _render_inventory_tab(
+    *,
+    year_df: Optional[pd.DataFrame],
+    financial_snapshot: Dict[str, object],
+    unit: str,
+    end_month: Optional[str],
+    profile: Optional[Dict[str, object]],
+) -> None:
+    unit_scale = UNIT_MAP.get(unit, 1)
+    year_totals = _monthly_year_totals(year_df)
+    if year_totals.empty:
+        st.info("在庫データがありません。設定からデータを確認してください。")
+        return
+
+    cogs_ratio = float(profile.get("cogs_ratio", 0.6) or 0.0)
+    asset_turnover = float(profile.get("asset_turnover", 2.5) or 0.0)
+    inventory_ratio = _find_ratio(
+        profile.get("balance_assets", []),
+        ["棚卸", "inventory", "在庫"],
+    )
+
+    if asset_turnover <= 0:
+        asset_turnover = 1.0
+
+    year_totals["inventory"] = (
+        year_totals["year_sum"] / asset_turnover * inventory_ratio
+    )
+    delta_ratio = (
+        year_totals["delta"]
+        / year_totals["year_sum"].replace(0, np.nan)
+    ).fillna(0.0)
+    adjust = (1 + delta_ratio * 0.5).clip(0.7, 1.3)
+    year_totals["inventory"] = year_totals["inventory"] * adjust
+    year_totals["cogs"] = year_totals["year_sum"] * cogs_ratio
+    year_totals["turnover"] = np.where(
+        year_totals["inventory"] > 0,
+        year_totals["cogs"] / year_totals["inventory"],
+        np.nan,
+    )
+
+    snapshot_month = end_month or year_totals["month"].iloc[-1]
+    snapshot_row = year_totals[year_totals["month"] == snapshot_month]
+    prev_month = _previous_month(year_totals["month"].tolist(), snapshot_month)
+    prev_row = year_totals[year_totals["month"] == prev_month]
+
+    inv_value = float(financial_snapshot.get("inventory_balance") or 0.0)
+    if inv_value == 0.0 and not snapshot_row.empty:
+        inv_value = float(snapshot_row["inventory"].iloc[0])
+
+    turnover_value = (
+        float(snapshot_row["turnover"].iloc[0])
+        if not snapshot_row.empty
+        else None
+    )
+    turnover_delta = None
+    if not prev_row.empty and turnover_value is not None:
+        turnover_delta = turnover_value - float(prev_row["turnover"].iloc[0])
+
+    st.markdown("##### 指標カード")
+    metric_cols = st.columns(3)
+    metric_cols[0].metric(
+        "推定在庫残高",
+        format_amount(inv_value, unit),
+        delta=(
+            format_amount(
+                inv_value - float(prev_row["inventory"].iloc[0]), unit
+            )
+            if not prev_row.empty
+            else None
+        ),
+    )
+    metric_cols[1].metric(
+        "在庫回転率",
+        f"{turnover_value:.2f} 回" if turnover_value is not None else "—",
+        delta=(
+            f"{turnover_delta:.2f}pt" if turnover_delta is not None else None
+        ),
+    )
+
+    st.markdown("##### 在庫・回転率の推移")
+    inv_display = year_totals["inventory"] / unit_scale
+    turnover_series = year_totals["turnover"]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(x=year_totals["month"], y=inv_display, name="推定在庫残高")
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=year_totals["month"],
+            y=turnover_series,
+            name="在庫回転率",
+            mode="lines+markers",
+            yaxis="y2",
+        )
+    )
+    fig.update_layout(
+        height=420,
+        margin=dict(l=10, r=10, t=40, b=10),
+        yaxis=dict(title=f"在庫残高 ({unit})", tickformat=",.0f"),
+        yaxis2=dict(title="回転率(回)", overlaying="y", side="right"),
+    )
+    fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+    render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+
+    st.markdown("##### アラート")
+    alerts_year = pd.DataFrame()
+    if (
+        year_df is not None
+        and not getattr(year_df, "empty", True)
+        and snapshot_month
+    ):
+        alerts_year = year_df[year_df["month"] == snapshot_month].dropna(
+            subset=["year_sum"]
+        )
+
+    if alerts_year.empty or inv_value <= 0:
+        st.info("しきい値に該当する在庫アラートはありません。")
+    else:
+        total_year_sum = alerts_year["year_sum"].sum()
+        alerts_year = alerts_year.copy()
+        alerts_year["inventory_value"] = np.where(
+            total_year_sum > 0,
+            alerts_year["year_sum"] / total_year_sum * inv_value,
+            0.0,
+        )
+        stockout_alerts = alerts_year[
+            (alerts_year["yoy"] > 0.15) & (
+                alerts_year["inventory_value"] < inv_value * 0.02
+            )
+        ]
+        excess_alerts = alerts_year[
+            (alerts_year["yoy"] < -0.1)
+            & (alerts_year["inventory_value"] > inv_value * 0.05)
+        ]
+        if not stockout_alerts.empty:
+            st.warning(
+                f"品切れリスク: {len(stockout_alerts)} 件 — 売上が伸びる一方で在庫が少ない商品があります。"
+            )
+        if not excess_alerts.empty:
+            st.error(
+                f"過剰在庫リスク: {len(excess_alerts)} 件 — 売上が減速しているのに在庫が積み上がっている商品があります。"
+            )
+        if stockout_alerts.empty and excess_alerts.empty:
+            st.success("在庫バランスは良好です。")
+
+    st.markdown("##### 在庫構成と明細")
+    comp_cols = st.columns(2)
+    with comp_cols[0]:
+        st.markdown("###### 商品別在庫構成")
+        if alerts_year.empty or inv_value <= 0:
+            st.info("在庫構成を表示できません。")
+        else:
+            product_inv = alerts_year[[
+                "product_code",
+                "product_name",
+                "inventory_value",
+            ]].copy()
+            product_inv = product_inv.sort_values(
+                "inventory_value", ascending=False
+            )
+            product_inv["表示額"] = product_inv["inventory_value"] / unit_scale
+            product_inv["シェア"] = product_inv["inventory_value"] / inv_value * 100.0
+            fig_inv = px.bar(
+                product_inv.head(10).sort_values("表示額"),
+                x="表示額",
+                y="product_name",
+                orientation="h",
+                text=product_inv.head(10)["シェア"].map(lambda v: f"{v:.1f}%"),
+            )
+            fig_inv.update_layout(
+                height=380,
+                margin=dict(l=10, r=10, t=30, b=10),
+                xaxis_title=f"在庫金額 ({unit})",
+                yaxis_title="",
+            )
+            fig_inv = apply_elegant_theme(
+                fig_inv, theme=st.session_state.get("ui_theme", "light")
+            )
+            render_plotly_with_spinner(fig_inv, config=PLOTLY_CONFIG)
+
+    with comp_cols[1]:
+        st.markdown("###### 在庫回転率 (商品別)")
+        if alerts_year.empty:
+            st.info("表示できるデータがありません。")
+        else:
+            product_turnover = alerts_year[[
+                "product_code",
+                "product_name",
+                "yoy",
+                "delta",
+            ]].copy()
+            product_turnover = product_turnover.sort_values("yoy", ascending=False)
+            fig_turnover = px.bar(
+                product_turnover.head(10),
+                x="product_name",
+                y="yoy",
+                labels={"yoy": "YoY", "product_name": "商品"},
+            )
+            fig_turnover.update_layout(
+                height=380,
+                margin=dict(l=10, r=10, t=30, b=10),
+                yaxis_tickformat="+.0%",
+            )
+            fig_turnover = apply_elegant_theme(
+                fig_turnover, theme=st.session_state.get("ui_theme", "light")
+            )
+            render_plotly_with_spinner(fig_turnover, config=PLOTLY_CONFIG)
+
+    with st.expander("在庫明細を表示", expanded=False):
+        if alerts_year.empty:
+            st.info("表示できる明細がありません。")
+        else:
+            detail_df = alerts_year[[
+                "product_code",
+                "product_name",
+                "inventory_value",
+                "yoy",
+                "delta",
+            ]].copy()
+            detail_df["シェア"] = detail_df["inventory_value"] / inv_value * 100.0
+            display_df = pd.DataFrame(
+                {
+                    "商品コード": detail_df["product_code"],
+                    "商品名": detail_df["product_name"],
+                    f"在庫金額({unit})": detail_df["inventory_value"] / unit_scale,
+                    "シェア(%)": detail_df["シェア"],
+                    "前年同月比(%)": detail_df["yoy"] * 100.0,
+                    f"前月差({unit})": detail_df["delta"] / unit_scale,
+                }
+            )
+            st.dataframe(
+                display_df.style.format(
+                    {
+                        f"在庫金額({unit})": "{:,.0f}",
+                        "シェア(%)": "{:.1f}%",
+                        "前年同月比(%)": "{:.1f}%",
+                        f"前月差({unit})": "{:,.0f}",
+                    }
+                ),
+                use_container_width=True,
+            )
+            csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "CSVダウンロード",
+                data=csv_data,
+                file_name="inventory_detail.csv",
+                mime="text/csv",
+            )
+
+
+def _render_funds_tab(
+    *,
+    year_df: Optional[pd.DataFrame],
+    financial_snapshot: Dict[str, object],
+    unit: str,
+    end_month: Optional[str],
+    profile: Optional[Dict[str, object]],
+) -> None:
+    unit_scale = UNIT_MAP.get(unit, 1)
+    cash_items = profile.get("cash_flow", []) or []
+    year_totals = _monthly_year_totals(year_df)
+    if year_totals.empty:
+        st.info("資金繰りデータがありません。設定からデータを確認してください。")
+        return
+
+    cash_long: List[Dict[str, object]] = []
+    for item in cash_items:
+        label = item.get("item", "キャッシュフロー")
+        try:
+            ratio = float(item.get("ratio", 0.0))
+        except (TypeError, ValueError):
+            ratio = 0.0
+        amounts = year_totals["year_sum"] * ratio
+        for month, amount in zip(year_totals["month"], amounts):
+            cash_long.append({"month": month, "category": label, "amount": amount})
+
+    cash_df = pd.DataFrame(cash_long)
+    net_series = pd.DataFrame()
+    if not cash_df.empty:
+        net_series = cash_df.groupby("month", as_index=False)["amount"].sum()
+
+    flows = financial_snapshot.get("cash_flows", []) or []
+
+    def _flow_amount(keyword: str) -> float:
+        for entry in flows:
+            if keyword in str(entry.get("item", "")):
+                try:
+                    return float(entry.get("amount", 0.0))
+                except (TypeError, ValueError):
+                    return 0.0
+        return 0.0
+
+    operating_cf = _flow_amount("営業")
+    investing_cf = _flow_amount("投資")
+    financing_cf = _flow_amount("財務")
+
+    st.markdown("##### 指標カード")
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("営業キャッシュフロー", format_amount(operating_cf, unit))
+    metric_cols[1].metric("投資キャッシュフロー", format_amount(investing_cf, unit))
+    metric_cols[2].metric("財務キャッシュフロー", format_amount(financing_cf, unit))
+
+    st.markdown("##### キャッシュフロー推移")
+    if cash_df.empty:
+        st.info("キャッシュフローデータが不足しています。")
+    else:
+        display_df = cash_df.copy()
+        display_df["表示額"] = display_df["amount"] / unit_scale
+        fig = px.bar(
+            display_df,
+            x="month",
+            y="表示額",
+            color="category",
+            barmode="relative",
+        )
+        if not net_series.empty:
+            net_series["表示額"] = net_series["amount"] / unit_scale
+            fig.add_trace(
+                go.Scatter(
+                    x=net_series["month"],
+                    y=net_series["表示額"],
+                    name="純キャッシュフロー",
+                    mode="lines+markers",
+                )
+            )
+        fig.update_layout(
+            height=420,
+            margin=dict(l=10, r=10, t=40, b=10),
+            yaxis_title=f"金額 ({unit})",
+        )
+        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+
+    st.markdown("##### 入出金構成")
+    latest_month = end_month or (net_series["month"].iloc[-1] if not net_series.empty else None)
+    latest_flows = pd.DataFrame()
+    if latest_month and not cash_df.empty:
+        latest_flows = cash_df[cash_df["month"] == latest_month]
+    if latest_flows.empty:
+        st.info("最新月の入出金データがありません。")
+    else:
+        latest_flows = latest_flows.copy()
+        latest_flows["表示額"] = latest_flows["amount"] / unit_scale
+        fig_latest = px.bar(
+            latest_flows,
+            x="category",
+            y="表示額",
+            text=latest_flows["表示額"].map(lambda v: f"{v:,.0f}"),
+        )
+        fig_latest.update_layout(
+            height=380,
+            margin=dict(l=10, r=10, t=30, b=10),
+            xaxis_title="キャッシュフロー項目",
+            yaxis_title=f"金額 ({unit})",
+        )
+        fig_latest = apply_elegant_theme(
+            fig_latest, theme=st.session_state.get("ui_theme", "light")
+        )
+        render_plotly_with_spinner(fig_latest, config=PLOTLY_CONFIG)
+
+    with st.expander("資金繰り計算書を表示", expanded=False):
+        if not flows:
+            st.info("テンプレートのキャッシュフロー比率が設定されていません。")
+        else:
+            table_df = pd.DataFrame(flows)
+            table_df["金額({unit})"] = table_df["amount"].astype(float) / unit_scale
+            table_df["構成比(%)"] = table_df["ratio"].astype(float) * 100.0
+            display_df = table_df[["item", f"金額({unit})", "構成比(%)"]].rename(
+                columns={"item": "項目"}
+            )
+            st.dataframe(
+                display_df.style.format(
+                    {
+                        f"金額({unit})": "{:,.0f}",
+                        "構成比(%)": "{:.1f}%",
+                    }
+                ),
+                use_container_width=True,
+            )
+            csv_data = display_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "CSVダウンロード",
+                data=csv_data,
+                file_name="cash_flow_statement.csv",
+                mime="text/csv",
+            )
 
 
 def nice_slider_step(max_value: int, target_steps: int = 40) -> int:
@@ -4982,37 +6124,7 @@ year_df = st.session_state.get("data_year")
 
 if year_df is not None and not year_df.empty:
     if page == "ダッシュボード":
-        st.sidebar.subheader("期間選択")
-        period_options = [12, 24, 36]
-        default_period = st.session_state.settings.get("window", 12)
-        if default_period not in period_options:
-            default_period = 12
-        st.sidebar.selectbox(
-            "集計期間",
-            period_options,
-            index=period_options.index(default_period),
-            key="sidebar_period",
-            format_func=lambda v: f"{v}ヶ月",
-            on_change=lambda: log_click("期間選択"),
-        )
-        unit_options = list(UNIT_MAP.keys())
-        default_unit = st.session_state.settings.get("currency_unit", "円")
-        if default_unit not in unit_options:
-            default_unit = unit_options[0]
-        st.sidebar.selectbox(
-            "表示単位",
-            unit_options,
-            index=unit_options.index(default_unit),
-            key="sidebar_unit",
-            on_change=lambda: log_click("表示単位"),
-        )
-        st.sidebar.subheader("表示月")
-        sidebar_state["dashboard_end_month"] = end_month_selector(
-            year_df,
-            key="end_month_dash",
-            label="表示月",
-            sidebar=True,
-        )
+        pass
     elif page == "ランキング":
         st.sidebar.subheader("期間選択")
         sidebar_state["rank_end_month"] = end_month_selector(
@@ -5540,220 +6652,187 @@ Quality metrics are available for the current dataset."""
                 """ファイルをアップロードすると欠測状況や期間のサマリーが表示されます。
 Upload a file to view missing values and coverage summaries here."""
             )
+
 # 2) ダッシュボード
 elif page == "ダッシュボード":
     require_data()
     section_header("ダッシュボード", "年計KPIと成長トレンドを俯瞰します。", icon="📈")
 
-    period_value = st.session_state.get(
-        "sidebar_period", st.session_state.settings.get("window", 12)
-    )
-    unit_value = st.session_state.get(
-        "sidebar_unit", st.session_state.settings.get("currency_unit", "円")
-    )
+    year_df = st.session_state.data_year
+    data_monthly = st.session_state.data_monthly
+    template_key = get_active_template_key()
+    template_config = get_template_config(template_key)
+    profile = template_config.get("financial_profile", {})
 
-    # update settings and filter log
+    months_available = _sorted_months(year_df)
+    if not months_available:
+        st.warning("表示できる月次データがありません。データ取込を確認してください。")
+        st.stop()
+
+    latest_month = months_available[-1]
+    period_options = [12, 24, 36]
+    default_period = st.session_state.settings.get("window", 12)
+    if default_period not in period_options:
+        default_period = 12
+
+    unit_options = list(UNIT_MAP.keys())
+    default_unit = st.session_state.settings.get("currency_unit", "円")
+    if default_unit not in unit_options:
+        default_unit = unit_options[0]
+
+    store_options, store_column = _resolve_store_options(data_monthly)
+    default_store = st.session_state.get("dashboard_store", store_options[0])
+    if default_store not in store_options:
+        default_store = store_options[0]
+        st.session_state.dashboard_store = default_store
+
+    control_cols = st.columns([5.0, 1.5, 1.4, 1.4, 1.4])
+
+    with control_cols[1]:
+        current_end = st.session_state.get("end_month_dash", latest_month)
+        if current_end not in months_available:
+            current_end = latest_month
+        end_index = months_available.index(current_end)
+        end_m = st.selectbox(
+            "表示月",
+            months_available,
+            index=end_index,
+            key="end_month_dash",
+        )
+
+    with control_cols[2]:
+        period_index = period_options.index(default_period)
+        period_value = st.selectbox(
+            "期間",
+            period_options,
+            index=period_index,
+            key="sidebar_period",
+            format_func=lambda v: f"{v}ヶ月",
+        )
+
+    with control_cols[3]:
+        store_index = store_options.index(default_store)
+        store_value = st.selectbox(
+            "店舗",
+            store_options,
+            index=store_index,
+            key="dashboard_store",
+        )
+
+    with control_cols[4]:
+        unit_index = unit_options.index(default_unit)
+        unit_value = st.selectbox(
+            "単位",
+            unit_options,
+            index=unit_index,
+            key="sidebar_unit",
+        )
+
+    active_end_month = end_m or latest_month
+    sidebar_state["dashboard_end_month"] = active_end_month
+
     st.session_state.settings["window"] = period_value
     st.session_state.settings["currency_unit"] = unit_value
     st.session_state.filters.update(
         {
             "period": period_value,
             "currency_unit": unit_value,
+            "store": store_value,
         }
     )
 
-    end_m = sidebar_state.get("dashboard_end_month") or latest_month
-
-    # KPI
-    kpi = aggregate_overview(st.session_state.data_year, end_m)
-    hhi = compute_hhi(st.session_state.data_year, end_m)
-    unit = st.session_state.settings["currency_unit"]
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("年計総額", format_amount(kpi["total_year_sum"], unit))
-    c2.metric("年計YoY", f"{kpi['yoy']*100:.1f} %" if kpi["yoy"] is not None else "—")
-    c3.metric("前月差(Δ)", format_amount(kpi["delta"], unit))
-    c4.metric("HHI(集中度)", f"{hhi:.3f}")
-
-    template_key = get_active_template_key()
-    template_config = get_template_config(template_key)
-    statements = build_financial_statements(
-        st.session_state.data_year, end_m, template_key
+    filtered_monthly = _filter_monthly_data(
+        data_monthly,
+        end_month=active_end_month,
+        months=period_value,
+        store_column=store_column,
+        store_value=store_value,
     )
-    meta_info = statements.get("meta", {})
-    statement_tabs = st.tabs(["損益計算書", "貸借対照表", "資金繰り表"])
-    tab_keys = ["income", "balance", "cash"]
-    unit_scale = UNIT_MAP.get(unit, 1)
-    for tab, key in zip(statement_tabs, tab_keys):
-        with tab:
-            df_stmt = statements.get(key)
-            if df_stmt is None or df_stmt.empty:
-                st.info(
-                    "表示できる財務データがありません。対象月やテンプレートを変更してください。"
-                )
-            else:
-                display_df = df_stmt.copy()
-                display_df["金額"] = display_df["金額"] / unit_scale
-                display_df["構成比(%)"] = display_df["構成比"] * 100
-                column_order = ["項目", "金額", "構成比(%)"]
-                if "区分" in display_df.columns:
-                    column_order.insert(0, "区分")
-                display_df = display_df[column_order]
-                st.dataframe(
-                    display_df.style.format(
-                        {"金額": "{:,.0f}", "構成比(%)": "{:+.1f}%"}
-                    ),
-                    use_container_width=True,
-                )
-                plot_df = display_df.copy()
-                text_values = plot_df["金額"].apply(lambda v: f"{v:,.0f}{unit}")
-                fig = px.bar(
-                    plot_df,
-                    x="金額",
-                    y="項目",
-                    orientation="h",
-                    color="区分" if "区分" in plot_df.columns else None,
-                    text=text_values,
-                )
-                fig.update_layout(
-                    height=380,
-                    xaxis_title=f"金額({unit})",
-                    yaxis_title="",
-                    margin=dict(l=10, r=10, t=40, b=10),
-                )
-                fig.update_traces(textposition="outside")
-                fig = apply_elegant_theme(
-                    fig, theme=st.session_state.get("ui_theme", "light")
-                )
-                render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
+    monthly_trend = _prepare_monthly_trend(filtered_monthly)
+    channel_column = _detect_channel_column(filtered_monthly)
 
-                if key == "income":
-                    st.caption(
-                        f"{template_config.get('label', 'テンプレート')}テンプレートによる損益試算。"
-                        f" 年計売上 {format_amount(meta_info.get('revenue'), unit)} / "
-                        f"当期純利益 {format_amount(meta_info.get('net_income'), unit)}"
-                    )
-                elif key == "balance":
-                    st.caption(
-                        f"{template_config.get('label', 'テンプレート')}テンプレートをもとに"
-                        f" 総資産 {format_amount(meta_info.get('assets_total'), unit)} を想定した構成です。"
-                    )
-                else:
-                    st.caption(
-                        "キャッシュフローは売上高とテンプレート比率を基に簡易推計しています。"
-                    )
-
-    metrics_list = (
-        st.session_state.settings.get("template_kpi_targets")
-        or template_config.get("recommended_metrics", [])
+    kpi = aggregate_overview(year_df, active_end_month)
+    financial_snapshot = _compute_financial_snapshot(
+        year_df, active_end_month, profile
     )
-    if metrics_list:
-        st.markdown("#### テンプレート推奨KPI")
-        metric_cards: List[Dict[str, object]] = []
-        for metric in metrics_list:
-            metric_cards.append(
-                {
-                    "title": metric.get("name", "指標"),
-                    "subtitle": "Template KPI",
-                    "value": format_template_metric(metric),
-                    "icon": detect_metric_icon(metric.get("name", "")),
-                    "footnote": metric.get("description", ""),
-                    "tooltip": metric.get("description", ""),
-                }
-            )
-        render_metric_cards(metric_cards, columns=min(3, len(metric_cards)))
+    prev_month = _previous_month(months_available, active_end_month)
+    prev_snapshot = _compute_financial_snapshot(year_df, prev_month, profile)
 
-    snap = (
-        st.session_state.data_year[st.session_state.data_year["month"] == end_m]
-        .dropna(subset=["year_sum"])
-        .copy()
-        .sort_values("year_sum", ascending=False)
+    st.markdown(
+        f"**表示条件**：{store_value} ｜ 過去 {period_value} ヶ月 ｜ 単位 {unit_value}"
     )
 
-    totals = st.session_state.data_year.groupby("month", as_index=False)[
-        "year_sum"
-    ].sum()
-    totals["year_sum_disp"] = totals["year_sum"] / UNIT_MAP[unit]
+    kpi_cols = st.columns(3)
+    total_sales = kpi.get("total_year_sum")
+    delta_sales = kpi.get("delta")
+    kpi_cols[0].metric(
+        "売上総額 (年計)",
+        format_amount(total_sales, unit_value),
+        delta=format_amount(delta_sales, unit_value) if delta_sales is not None else None,
+    )
 
-    tab_highlight, tab_ranking = st.tabs(["ハイライト", "ランキング / エクスポート"])
+    gross_margin = financial_snapshot.get("gross_margin_rate")
+    prev_margin = prev_snapshot.get("gross_margin_rate")
+    margin_label = (
+        f"{gross_margin * 100:.1f}%" if gross_margin is not None else "—"
+    )
+    margin_delta = None
+    if gross_margin is not None and prev_margin is not None:
+        margin_delta = f"{(gross_margin - prev_margin) * 100:.1f}pt"
+    kpi_cols[1].metric("粗利率", margin_label, delta=margin_delta)
 
-    with tab_highlight:
-        ai_on = st.toggle(
-            "AIサマリー",
-            value=False,
-            help="要約・コメント・自動説明を表示（オンデマンド計算）",
-            key="dash_ai_summary",
-        )
-        with st.expander("AIサマリー", expanded=ai_on):
-            if ai_on:
-                with st.spinner("AI要約を生成中…"):
-                    kpi_text = _ai_explain(
-                        {
-                            "年計総額": kpi["total_year_sum"],
-                            "年計YoY": kpi["yoy"],
-                            "前月差Δ": kpi["delta"],
-                        }
-                    )
-                    snap_ai = snap[["year_sum", "yoy", "delta"]].head(100)
-                    stat_text = _ai_sum_df(snap_ai)
-                    st.info(f"**AI説明**：{kpi_text}\n\n**AI要約**：{stat_text}")
-                    actions = _ai_actions(
-                        {
-                            "total_year_sum": float(kpi.get("total_year_sum") or 0.0),
-                            "yoy": float(kpi.get("yoy") or 0.0),
-                            "delta": float(kpi.get("delta") or 0.0),
-                            "hhi": float(hhi or 0.0),
-                        },
-                        focus=end_m,
-                    )
-                    st.success(f"**AI推奨アクション**：{actions}")
-                    st.caption(_ai_comment("直近の年計トレンドと上位SKUの動向"))
+    cash_balance = financial_snapshot.get("cash_balance")
+    prev_cash = prev_snapshot.get("cash_balance")
+    cash_delta = None
+    if cash_balance is not None and prev_cash is not None:
+        cash_delta = cash_balance - prev_cash
+    kpi_cols[2].metric(
+        "キャッシュ残高",
+        format_amount(cash_balance, unit_value),
+        delta=(
+            format_amount(cash_delta, unit_value) if cash_delta is not None else None
+        ),
+    )
 
-        fig = px.line(
-            totals, x="month", y="year_sum_disp", title="総合 年計トレンド", markers=True
-        )
-        fig.update_yaxes(title=f"年計({unit})", tickformat="~,d")
-        fig.update_layout(height=525, margin=dict(l=10, r=10, t=50, b=10))
-        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-        render_plotly_with_spinner(fig, config=PLOTLY_CONFIG)
-        st.caption("凡例クリックで系列の表示切替、ダブルクリックで単独表示。")
-
-    with tab_ranking:
-        st.markdown(f"#### ランキング（{end_m} 時点 年計）")
-        snap_disp = snap.copy()
-        snap_disp["year_sum"] = snap_disp["year_sum"] / UNIT_MAP[unit]
-        st.dataframe(
-            snap_disp[["product_code", "product_name", "year_sum", "yoy", "delta"]].head(
-                20
-            ),
-            use_container_width=True,
-        )
-        st.download_button(
-            "この表をCSVでダウンロード",
-            data=snap.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"ranking_{end_m}.csv",
-            mime="text/csv",
+    tabs = st.tabs(["売上", "粗利", "在庫", "資金"])
+    with tabs[0]:
+        _render_sales_tab(
+            filtered_monthly=filtered_monthly,
+            monthly_trend=monthly_trend,
+            unit=unit_value,
+            end_month=active_end_month,
+            year_df=year_df,
+            channel_column=channel_column,
         )
 
-        pdf_bytes = download_pdf_overview(
-            {
-                "total_year_sum": int(kpi["total_year_sum"])
-                if kpi["total_year_sum"] is not None
-                else 0,
-                "yoy": round(kpi["yoy"], 4) if kpi["yoy"] is not None else None,
-                "delta": int(kpi["delta"]) if kpi["delta"] is not None else None,
-            },
-            snap,
-            filename=f"overview_{end_m}.pdf",
-        )
-        st.download_button(
-            "会議用PDF（KPI+Top10）を出力",
-            data=pdf_bytes,
-            file_name=f"overview_{end_m}.pdf",
-            mime="application/pdf",
+    with tabs[1]:
+        _render_gross_profit_tab(
+            filtered_monthly=filtered_monthly,
+            monthly_trend=monthly_trend,
+            unit=unit_value,
+            end_month=active_end_month,
+            profile=profile,
+            year_df=year_df,
         )
 
-# 3) ランキング
+    with tabs[2]:
+        _render_inventory_tab(
+            year_df=year_df,
+            financial_snapshot=financial_snapshot,
+            unit=unit_value,
+            end_month=active_end_month,
+            profile=profile,
+        )
+
+    with tabs[3]:
+        _render_funds_tab(
+            year_df=year_df,
+            financial_snapshot=financial_snapshot,
+            unit=unit_value,
+            end_month=active_end_month,
+            profile=profile,
+        )
+
 elif page == "ランキング":
     require_data()
     section_header("ランキング", "上位と下位のSKUを瞬時に把握します。", icon="🏆")
