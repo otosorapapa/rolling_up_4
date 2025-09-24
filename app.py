@@ -155,6 +155,23 @@ def icon_svg(name: str) -> str:
     return ICON_SVGS.get(name, ICON_SVGS["info"])
 
 
+@contextmanager
+def compat_modal(title: str, *, key: Optional[str] = None, **kwargs):
+    """Provide a modal-like context manager on Streamlit versions without st.modal."""
+
+    modal_fn = getattr(st, "modal", None)
+    if callable(modal_fn):
+        with modal_fn(title, key=key, **kwargs) as modal:
+            yield modal
+        return
+
+    fallback_container = st.container()
+    with fallback_container:
+        if title:
+            st.markdown(f"### {title}")
+        yield fallback_container
+
+
 def render_icon_label(
     icon_key: str,
     primary: str,
@@ -1852,7 +1869,7 @@ def render_onboarding_modal() -> None:
         return
     if not st.session_state.get("show_onboarding_modal", True):
         return
-    with st.modal("クイックスタートガイド", key="onboarding_modal"):
+    with compat_modal("クイックスタートガイド", key="onboarding_modal"):
         st.write("数分で主要なワークフローを体験できます。下記の流れで操作を進めましょう。")
         st.markdown(
             "- **データ取込** — サンプルや自社データをアップロードして分析を有効化\n"
@@ -6045,7 +6062,7 @@ elif page == "SKU詳細":
             st.info("SKUを選択してください。")
 
     if tb.get("expand_mode") and chart_rendered:
-        with st.modal("グラフ拡大モード", key="sku_expand_modal"):
+        with compat_modal("グラフ拡大モード", key="sku_expand_modal"):
             st.caption("操作パネルは拡大表示中も利用できます。")
             tb_modal = toolbar_sku_detail(
                 multi_mode=modal_is_multi,
