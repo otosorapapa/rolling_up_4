@@ -1553,6 +1553,10 @@ if "tour_step_index" not in st.session_state:
     st.session_state.tour_step_index = 0
 if "tour_completed" not in st.session_state:
     st.session_state.tour_completed = False
+if "onboarding_seen" not in st.session_state:
+    st.session_state.onboarding_seen = False
+if "show_onboarding_modal" not in st.session_state:
+    st.session_state.show_onboarding_modal = True
 if "sample_data_notice" not in st.session_state:
     st.session_state.sample_data_notice = False
 if "sample_data_message" not in st.session_state:
@@ -1841,6 +1845,43 @@ def render_app_hero():
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_onboarding_modal() -> None:
+    if st.session_state.get("onboarding_seen"):
+        return
+    if not st.session_state.get("show_onboarding_modal", True):
+        return
+    with st.modal("クイックスタートガイド", key="onboarding_modal"):
+        st.write("数分で主要なワークフローを体験できます。下記の流れで操作を進めましょう。")
+        st.markdown(
+            "- **データ取込** — サンプルや自社データをアップロードして分析を有効化\n"
+            "- **ダッシュボード** — KPIカードとAIサマリーで全体像を確認\n"
+            "- **分析ツール** — ランキングや比較ビューで気になるSKUを深掘り"
+        )
+        st.caption("ヒント: メニューのアイコンやボタンにカーソルを合わせると詳細のツールチップが表示されます。")
+        start_col, skip_col = st.columns(2)
+        if start_col.button(
+            "ツアーを開始",
+            key="onboarding_start",
+            help="基礎編から順に案内する操作ツアーを開始します。",
+        ):
+            st.session_state.onboarding_seen = True
+            st.session_state.show_onboarding_modal = False
+            st.session_state.tour_active = True
+            st.session_state.tour_completed = False
+            st.session_state.tour_step_index = 0
+            if TOUR_STEPS:
+                st.session_state.tour_pending_nav = TOUR_STEPS[0]["nav_key"]
+            st.rerun()
+        if skip_col.button(
+            "あとで見る",
+            key="onboarding_skip",
+            help="オンボーディングを閉じて通常画面に進みます。",
+        ):
+            st.session_state.onboarding_seen = True
+            st.session_state.show_onboarding_modal = False
+            st.rerun()
 
 
 def get_current_tour_step() -> Optional[Dict[str, str]]:
@@ -3027,6 +3068,105 @@ st.markdown(
       font-size:0.85rem;
       letter-spacing:.02em;
     }
+    .nav-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(7,22,39,0.55);
+      backdrop-filter:blur(6px);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .3s ease;
+      z-index:1000;
+    }
+    .mobile-nav-toggle{
+      position:fixed;
+      top:1rem;
+      right:1rem;
+      width:46px;
+      height:46px;
+      border-radius:14px;
+      background:rgba(11,31,58,0.82);
+      border:1px solid rgba(255,255,255,0.35);
+      box-shadow:0 18px 36px rgba(11,31,58,0.35);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      z-index:1100;
+      cursor:pointer;
+    }
+    .mobile-nav-toggle span{
+      display:block;
+      width:22px;
+      height:2px;
+      background:#ffffff;
+      border-radius:999px;
+      transition:transform .25s ease, opacity .25s ease;
+    }
+    .page-transition-fade{
+      animation:pageFade .38s ease;
+    }
+    @keyframes pageFade{
+      from{ opacity:0; transform:translateY(8px); }
+      to{ opacity:1; transform:translateY(0); }
+    }
+    .nav-open .nav-overlay{
+      opacity:1;
+      pointer-events:auto;
+    }
+    .nav-open .mobile-nav-toggle span:nth-child(1){ transform:translateY(6px) rotate(45deg); }
+    .nav-open .mobile-nav-toggle span:nth-child(2){ opacity:0; }
+    .nav-open .mobile-nav-toggle span:nth-child(3){ transform:translateY(-6px) rotate(-45deg); }
+    @media (max-width: 880px){
+      html{ font-size:105%; }
+      body{ overflow-x:hidden; }
+      [data-testid="stSidebar"]{
+        position:fixed;
+        top:0;
+        left:0;
+        height:100vh;
+        width:min(320px,82vw);
+        max-width:86vw;
+        transform:translateX(-110%);
+        transition:transform .3s ease;
+        z-index:1001;
+        box-shadow:18px 0 32px rgba(11,31,58,0.35);
+      }
+      .nav-open [data-testid="stSidebar"]{ transform:translateX(0); }
+      .mobile-nav-toggle{ display:flex; }
+      [data-testid="stSidebar"] .sidebar-app-brand{ margin-top:3.2rem; }
+      [data-testid="stSidebar"] label.nav-pill{ padding:1rem 1.1rem; }
+      [data-testid="stSidebar"] label.nav-pill .nav-pill__icon{ width:2.9rem; height:2.9rem; font-size:1.45rem; }
+      [data-testid="stSidebar"] label.nav-pill .nav-pill__title{ font-size:1.05rem; }
+      [data-testid="stSidebar"] label.nav-pill .nav-pill__desc{ font-size:0.95rem; }
+      .stButton>button{
+        padding:0.75rem 1.6rem;
+        font-size:1.05rem;
+        min-height:3.1rem;
+      }
+      select,
+      .stTextInput>div>input,
+      .stSelectbox>div>div>input{
+        font-size:1.02rem !important;
+      }
+      [data-testid="stHorizontalBlock"]{
+        flex-direction:column !important;
+        gap:0.8rem !important;
+      }
+      [data-testid="column"]{
+        width:100% !important;
+        flex-basis:100% !important;
+      }
+      .mck-metric-card{
+        min-height:auto;
+        padding:1.2rem 1.3rem;
+      }
+      .mck-metric-card__value{ font-size:1.65rem; }
+      .mck-metric-card__title{ font-size:1.05rem; }
+      .mck-metric-card__subtitle{ font-size:0.9rem; }
+      .mck-breadcrumb{ flex-direction:column; align-items:flex-start; }
+      .tour-step-guide{ justify-content:center; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -3158,9 +3298,86 @@ NAV_KEYS = [page["key"] for page in SIDEBAR_PAGES]
 NAV_TITLE_LOOKUP = {page["key"]: page["title"] for page in SIDEBAR_PAGES}
 page_lookup = {page["key"]: page["page"] for page in SIDEBAR_PAGES}
 
+PRIMARY_NAV_MENU = [
+    {
+        "key": "home",
+        "label": SIDEBAR_PAGE_LOOKUP["dashboard"]["title"],
+        "icon": SIDEBAR_PAGE_LOOKUP["dashboard"].get("icon", "🏠"),
+        "description": SIDEBAR_PAGE_LOOKUP["dashboard"].get("tooltip", ""),
+        "pages": ["dashboard"],
+    },
+    {
+        "key": "ranking",
+        "label": SIDEBAR_PAGE_LOOKUP["ranking"]["title"],
+        "icon": SIDEBAR_PAGE_LOOKUP["ranking"].get("icon", "📊"),
+        "description": SIDEBAR_PAGE_LOOKUP["ranking"].get("tooltip", ""),
+        "pages": ["ranking"],
+    },
+    {
+        "key": "analysis",
+        "label": "分析ツール",
+        "icon": SIDEBAR_PAGE_LOOKUP["compare"].get("icon", "🔍"),
+        "description": "比較ビューやSKU詳細、相関分析などの深掘りページをまとめています。",
+        "pages": ["compare", "detail", "correlation", "category"],
+    },
+    {
+        "key": "monitor",
+        "label": "監視アラート",
+        "icon": SIDEBAR_PAGE_LOOKUP["anomaly"].get("icon", "⚠️"),
+        "description": "異常検知とアラート機能でリスクを素早く把握します。",
+        "pages": ["anomaly", "alert"],
+    },
+    {
+        "key": "data",
+        "label": "データ設定",
+        "icon": SIDEBAR_PAGE_LOOKUP["import"].get("icon", "📥"),
+        "description": "データ取込や設定、保存ビューを一箇所にまとめました。",
+        "pages": ["import", "settings", "saved"],
+    },
+]
+
+PRIMARY_NAV_LOOKUP = {item["key"]: item for item in PRIMARY_NAV_MENU}
+PAGE_TO_PRIMARY_LOOKUP: Dict[str, str] = {}
+for item in PRIMARY_NAV_MENU:
+    pages = list(dict.fromkeys(item.get("pages", [])))
+    item["pages"] = pages
+    for page_key in pages:
+        if page_key in SIDEBAR_PAGE_LOOKUP:
+            PAGE_TO_PRIMARY_LOOKUP[page_key] = item["key"]
+
+PRIMARY_NAV_CLIENT_DATA: List[Dict[str, object]] = []
+for item in PRIMARY_NAV_MENU:
+    page_titles = {
+        page_key: NAV_TITLE_LOOKUP.get(
+            page_key,
+            SIDEBAR_PAGE_LOOKUP.get(page_key, {}).get("title", page_key),
+        )
+        for page_key in item["pages"]
+    }
+    page_tooltips = {
+        page_key: (
+            SIDEBAR_PAGE_LOOKUP.get(page_key, {}).get("tooltip")
+            or SIDEBAR_PAGE_LOOKUP.get(page_key, {}).get("tagline", "")
+        )
+        for page_key in item["pages"]
+    }
+    PRIMARY_NAV_CLIENT_DATA.append(
+        {
+            "key": item["key"],
+            "label": item["label"],
+            "icon": item.get("icon", ""),
+            "description": item.get("description", ""),
+            "pages": item["pages"],
+            "page_titles": page_titles,
+            "page_tooltips": page_tooltips,
+        }
+    )
+
 NAV_CATEGORY_STATE_KEY = "nav_category"
 PENDING_NAV_CATEGORY_KEY = "_pending_nav_category"
 PENDING_NAV_PAGE_KEY = "_pending_nav_page"
+NAV_PRIMARY_STATE_KEY = "nav_primary"
+PENDING_NAV_PRIMARY_KEY = "_pending_nav_primary"
 
 
 def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False) -> None:
@@ -3191,6 +3408,15 @@ def set_active_page(page_key: str, *, rerun_on_lock: bool = False) -> None:
     except StreamlitAPIException:
         st.session_state[PENDING_NAV_PAGE_KEY] = page_key
         rerun_required = True
+    primary_key = PAGE_TO_PRIMARY_LOOKUP.get(page_key)
+    if primary_key:
+        sub_state_key = f"nav_sub_{primary_key}"
+        st.session_state[sub_state_key] = page_key
+        try:
+            st.session_state[NAV_PRIMARY_STATE_KEY] = primary_key
+        except StreamlitAPIException:
+            st.session_state[PENDING_NAV_PRIMARY_KEY] = primary_key
+            rerun_required = True
     if category:
         _queue_nav_category(
             category,
@@ -4075,51 +4301,83 @@ default_category = current_meta.get("category")
 pending_nav_category = st.session_state.pop(PENDING_NAV_CATEGORY_KEY, None)
 if pending_nav_category:
     st.session_state[NAV_CATEGORY_STATE_KEY] = pending_nav_category
-if "nav_category" not in st.session_state:
+if NAV_CATEGORY_STATE_KEY not in st.session_state:
     if default_category:
-        st.session_state["nav_category"] = default_category
+        st.session_state[NAV_CATEGORY_STATE_KEY] = default_category
     elif used_category_keys:
-        st.session_state["nav_category"] = used_category_keys[0]
+        st.session_state[NAV_CATEGORY_STATE_KEY] = used_category_keys[0]
 
-category_options = used_category_keys or list(SIDEBAR_CATEGORY_STYLES.keys())
-category_label_lookup = {
-    key: SIDEBAR_CATEGORY_STYLES.get(key, {}).get("label", key)
-    for key in category_options
-}
+pending_nav_primary = st.session_state.pop(PENDING_NAV_PRIMARY_KEY, None)
+if pending_nav_primary in PRIMARY_NAV_LOOKUP:
+    st.session_state[NAV_PRIMARY_STATE_KEY] = pending_nav_primary
 
-if category_options:
-    current_nav_category = st.session_state.get("nav_category")
-    if current_nav_category not in category_options:
-        st.session_state["nav_category"] = category_options[0]
-    selected_category = st.sidebar.radio(
-        "機能カテゴリ",
-        category_options,
-        key="nav_category",
-        format_func=lambda key: category_label_lookup.get(key, key),
+current_primary_default = PAGE_TO_PRIMARY_LOOKUP.get(
+    current_page_key, PRIMARY_NAV_MENU[0]["key"]
+)
+if (
+    NAV_PRIMARY_STATE_KEY not in st.session_state
+    or st.session_state[NAV_PRIMARY_STATE_KEY] not in PRIMARY_NAV_LOOKUP
+):
+    st.session_state[NAV_PRIMARY_STATE_KEY] = current_primary_default
+
+for item in PRIMARY_NAV_MENU:
+    state_key = f"nav_sub_{item['key']}"
+    if state_key not in st.session_state and item["pages"]:
+        st.session_state[state_key] = item["pages"][0]
+    if current_page_key in item["pages"]:
+        st.session_state[state_key] = current_page_key
+
+def _format_primary_label(key: str) -> str:
+    item = PRIMARY_NAV_LOOKUP.get(key, {})
+    icon = (item.get("icon") or "").strip()
+    label = item.get("label", key)
+    active_page = st.session_state.get("nav_page", current_page_key)
+    if item.get("pages") and len(item["pages"]) > 1 and active_page in item["pages"]:
+        sub_label = NAV_TITLE_LOOKUP.get(active_page, active_page)
+        combined = f"{label}｜{sub_label}" if sub_label else label
+    else:
+        combined = label
+    return f"{icon} {combined}".strip()
+
+primary_keys = [item["key"] for item in PRIMARY_NAV_MENU]
+selected_primary = st.sidebar.radio(
+    "メインメニュー",
+    primary_keys,
+    key=NAV_PRIMARY_STATE_KEY,
+    format_func=_format_primary_label,
+)
+
+primary_item = PRIMARY_NAV_LOOKUP.get(selected_primary, PRIMARY_NAV_MENU[0])
+primary_pages = primary_item.get("pages", [])
+if not primary_pages:
+    primary_pages = [current_page_key]
+
+target_page_key = primary_pages[0]
+sub_state_key = f"nav_sub_{selected_primary}"
+if len(primary_pages) > 1:
+    current_sub_value = st.session_state.get(sub_state_key, primary_pages[0])
+    if current_sub_value not in primary_pages:
+        current_sub_value = primary_pages[0]
+        st.session_state[sub_state_key] = current_sub_value
+    target_page_key = st.sidebar.selectbox(
+        "表示する機能",
+        primary_pages,
+        key=sub_state_key,
+        format_func=lambda key: NAV_TITLE_LOOKUP.get(key, key),
+        help=primary_item.get("description", "このメニューに含まれる機能を選択します。"),
     )
 else:
-    selected_category = st.session_state.get("nav_category", "")
+    if primary_item.get("description"):
+        st.sidebar.caption(primary_item["description"])
+    target_page_key = primary_pages[0]
 
-category_info = SIDEBAR_CATEGORY_STYLES.get(selected_category, {})
-if category_info.get("description"):
-    st.sidebar.caption(category_info["description"])
+if target_page_key not in NAV_KEYS:
+    target_page_key = current_page_key
 
-category_pages = [
-    page_meta for page_meta in SIDEBAR_PAGES if page_meta["category"] == selected_category
-]
-if not category_pages:
-    category_pages = SIDEBAR_PAGES
+if st.session_state.get("nav_page") != target_page_key:
+    set_active_page(target_page_key)
 
-category_page_keys = [meta["key"] for meta in category_pages]
-if category_page_keys and st.session_state.get("nav_page") not in category_page_keys:
-    set_active_page(category_page_keys[0])
-
-page_key = st.sidebar.radio(
-    "利用する機能を選択",
-    category_page_keys if category_page_keys else NAV_KEYS,
-    key="nav_page",
-    format_func=lambda key: NAV_TITLE_LOOKUP.get(key, key),
-)
+page_key = st.session_state.get("nav_page", target_page_key)
 page = page_lookup[page_key]
 page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key, {})
 current_category = page_meta.get("category")
@@ -4127,147 +4385,171 @@ if current_category and st.session_state.get("nav_category") != current_category
     _queue_nav_category(current_category, rerun_on_lock=True)
 if page_meta.get("tagline"):
     st.sidebar.caption(page_meta["tagline"])
+current_page_key = page_key
 
-nav_script_payload = json.dumps(nav_client_data, ensure_ascii=False)
+nav_script_payload = json.dumps(
+    {
+        "items": PRIMARY_NAV_CLIENT_DATA,
+        "activePage": page_key,
+        "activePrimary": PAGE_TO_PRIMARY_LOOKUP.get(page_key, selected_primary),
+    },
+    ensure_ascii=False,
+)
 nav_script_template = """
 <script>
-const NAV_DATA = {payload};
+const NAV_PRIMARY = {payload};
 (function() {
     const doc = window.parent.document;
-    const apply = () => {
+    const ensureToggle = () => {
+        const root = doc.documentElement;
+        if (!root) return;
+        let toggle = doc.querySelector('.mobile-nav-toggle');
+        if (!toggle) {
+            toggle = doc.createElement('button');
+            toggle.className = 'mobile-nav-toggle';
+            toggle.type = 'button';
+            toggle.setAttribute('aria-label', 'メニューを開閉');
+            toggle.innerHTML = '<span></span><span></span><span></span>';
+            toggle.addEventListener('click', () => {
+                root.classList.toggle('nav-open');
+            });
+            const host = doc.querySelector('header') || doc.body;
+            host.appendChild(toggle);
+        }
+        let overlay = doc.querySelector('.nav-overlay');
+        if (!overlay) {
+            overlay = doc.createElement('div');
+            overlay.className = 'nav-overlay';
+            doc.body.appendChild(overlay);
+            overlay.addEventListener('click', () => {
+                root.classList.remove('nav-open');
+            });
+        }
+    };
+    const apply = (attempt = 0) => {
         const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
-        if (!sidebar) return false;
-        const radioGroups = Array.from(sidebar.querySelectorAll('div[data-baseweb="radio"]'));
-        if (!radioGroups.length) return false;
-        const navKeys = new Set(NAV_DATA.map((item) => item.key));
-        const categoryMeta = {};
-        NAV_DATA.forEach((item) => {
-            if (!item.category) return;
-            if (!categoryMeta[item.category]) {
-                categoryMeta[item.category] = {
-                    label: item.category_label || item.category,
-                };
-            } else if (!categoryMeta[item.category].label && item.category_label) {
-                categoryMeta[item.category].label = item.category_label;
+        if (!sidebar) {
+            if (attempt < 12) {
+                setTimeout(() => apply(attempt + 1), 140);
             }
-        });
-        const categoryKeys = Object.keys(categoryMeta);
-        const radioGroup = radioGroups.find((group) => {
-            const inputs = Array.from(group.querySelectorAll('input[type="radio"]'));
-            return inputs.some((input) => navKeys.has(input.value));
-        });
-        if (!radioGroup) return false;
-        const labels = Array.from(radioGroup.querySelectorAll('label'));
-        if (!labels.length) return false;
-        const metaByKey = Object.fromEntries(NAV_DATA.map((item) => [item.key, item]));
-        const updateActiveState = () => {
+            return;
+        }
+        const radioGroup = sidebar.querySelector('div[data-baseweb="radio"]');
+        if (radioGroup) {
+            const labels = Array.from(radioGroup.querySelectorAll('label'));
+            const metaByKey = Object.fromEntries(NAV_PRIMARY.items.map((item) => [item.key, item]));
+            const updateActive = () => {
+                labels.forEach((label) => {
+                    const input = label.querySelector('input[type="radio"]');
+                    if (!input) return;
+                    const key = input.value;
+                    label.classList.toggle('nav-pill--active', input.checked || key === NAV_PRIMARY.activePrimary);
+                });
+            };
             labels.forEach((label) => {
                 const input = label.querySelector('input[type="radio"]');
                 if (!input) return;
-                label.classList.toggle('nav-pill--active', input.checked);
-            });
-        };
-        labels.forEach((label) => {
-            const input = label.querySelector('input[type="radio"]');
-            if (!input) return;
-            const meta = metaByKey[input.value];
-            if (!meta) return;
-            const metaTitle = meta.title || '';
-            label.dataset.navKey = meta.key;
-            label.dataset.navCategory = meta.category;
-            const tooltipText = (meta.hover_text || meta.tooltip || meta.tagline || '').trim();
-            const ariaLabel = tooltipText
-                ? (tooltipText.startsWith(metaTitle) ? tooltipText : `${metaTitle}: ${tooltipText}`)
-                : metaTitle;
-            label.setAttribute('title', tooltipText);
-            label.setAttribute('aria-label', ariaLabel);
-            label.dataset.tooltip = tooltipText;
-            label.classList.add('has-tooltip');
-            label.style.setProperty('--nav-accent', meta.color || '#71b7d4');
-            label.style.setProperty('--nav-accent-rgb', meta.rgb || '71, 183, 212');
-            if (!label.classList.contains('nav-pill')) {
+                const key = input.value;
+                const meta = metaByKey[key];
+                if (!meta) return;
                 label.classList.add('nav-pill');
-            }
-            const spans = label.querySelectorAll('span');
-            let textSpan = null;
-            if (spans.length) {
-                textSpan = spans[spans.length - 1];
-            }
-            if (textSpan) {
-                textSpan.classList.add('nav-pill__body');
-                if (!textSpan.querySelector('.nav-pill__title')) {
-                    textSpan.innerHTML = `
-                        <span class="nav-pill__badge"></span>
-                        <span class="nav-pill__title"></span>
-                        <span class="nav-pill__desc"></span>
-                    `;
+                let iconSpan = label.querySelector('.nav-pill__icon');
+                if (!iconSpan) {
+                    iconSpan = doc.createElement('span');
+                    iconSpan.className = 'nav-pill__icon';
+                    iconSpan.setAttribute('aria-hidden', 'true');
+                    label.insertBefore(iconSpan, label.firstChild);
                 }
-                const badgeEl = textSpan.querySelector('.nav-pill__badge');
-                if (badgeEl) {
-                    badgeEl.textContent = meta.category_label || '';
-                }
-                const titleEl = textSpan.querySelector('.nav-pill__title');
-                if (titleEl) {
-                    titleEl.textContent = meta.title || '';
-                }
-                const descEl = textSpan.querySelector('.nav-pill__desc');
-                if (descEl) {
-                    descEl.textContent = meta.tagline || '';
-                }
-            }
-            let iconSpan = label.querySelector('.nav-pill__icon');
-            if (!iconSpan) {
-                iconSpan = doc.createElement('span');
-                iconSpan.className = 'nav-pill__icon';
                 iconSpan.textContent = meta.icon || '';
-                if (textSpan) {
-                    label.insertBefore(iconSpan, textSpan);
+                let bodySpan = label.querySelector('.nav-pill__body');
+                if (!bodySpan) {
+                    bodySpan = doc.createElement('span');
+                    bodySpan.className = 'nav-pill__body';
+                    while (label.childNodes.length > 1) {
+                        bodySpan.appendChild(label.childNodes[1]);
+                    }
+                    label.appendChild(bodySpan);
+                }
+                let titleEl = bodySpan.querySelector('.nav-pill__title');
+                if (!titleEl) {
+                    titleEl = doc.createElement('span');
+                    titleEl.className = 'nav-pill__title';
+                    bodySpan.insertBefore(titleEl, bodySpan.firstChild);
+                }
+                titleEl.textContent = meta.label || '';
+                let descEl = bodySpan.querySelector('.nav-pill__desc');
+                if (!descEl) {
+                    descEl = doc.createElement('span');
+                    descEl.className = 'nav-pill__desc';
+                    bodySpan.appendChild(descEl);
+                }
+                const activePage = NAV_PRIMARY.activePage;
+                if (meta.pages && meta.pages.length > 1 && meta.pages.includes(activePage)) {
+                    const subLabel = meta.page_titles ? (meta.page_titles[activePage] || '') : '';
+                    descEl.textContent = subLabel;
+                    label.classList.add('nav-pill--has-sub');
                 } else {
-                    label.appendChild(iconSpan);
+                    descEl.textContent = '';
+                    label.classList.remove('nav-pill--has-sub');
                 }
-            } else {
-                iconSpan.textContent = meta.icon || '';
-            }
-            iconSpan.setAttribute('aria-hidden', 'true');
-            input.setAttribute('aria-label', ariaLabel);
-            input.setAttribute('title', tooltipText);
-            if (!input.dataset.navEnhanced) {
-                input.addEventListener('change', updateActiveState);
-                input.dataset.navEnhanced = 'true';
+                const tooltipParts = [];
+                if (meta.description) {
+                    tooltipParts.push(meta.description);
+                }
+                if (meta.pages && meta.pages.length > 1) {
+                    const titles = meta.pages
+                        .map((page) => (meta.page_titles ? (meta.page_titles[page] || '') : ''))
+                        .filter(Boolean);
+                    if (titles.length) {
+                        tooltipParts.push(titles.join(' / '));
+                    }
+                } else if (meta.pages && meta.pages.length === 1) {
+                    const single = meta.pages[0];
+                    const tip = meta.page_tooltips ? (meta.page_tooltips[single] || '') : '';
+                    if (tip) {
+                        tooltipParts.push(tip);
+                    }
+                }
+                const tooltipText = tooltipParts.join('\n').trim();
+                const ariaLabel = tooltipText ? `${meta.label}: ${tooltipText}` : meta.label;
+                label.setAttribute('title', tooltipText || meta.label || '');
+                label.dataset.tooltip = tooltipText;
+                input.setAttribute('aria-label', ariaLabel || meta.label || '');
+                input.setAttribute('title', tooltipText || meta.label || '');
+                if (!input.dataset.navEnhanced) {
+                    input.addEventListener('change', () => {
+                        updateActive();
+                        doc.documentElement.classList.remove('nav-open');
+                    });
+                    input.dataset.navEnhanced = 'true';
+                }
+            });
+            updateActive();
+        }
+        const selects = Array.from(sidebar.querySelectorAll('select'));
+        selects.forEach((select) => {
+            if (!select.dataset.navEnhanced) {
+                select.addEventListener('change', () => {
+                    doc.documentElement.classList.remove('nav-open');
+                });
+                select.dataset.navEnhanced = 'true';
             }
         });
-        if (categoryKeys.length) {
-            const categoryKeySet = new Set(categoryKeys);
-            const categoryGroup = radioGroups.find((group) => {
-                const inputs = Array.from(group.querySelectorAll('input[type="radio"]'));
-                return inputs.length && inputs.every((input) => categoryKeySet.has(input.value));
-            });
-            if (categoryGroup) {
-                const categoryLabels = Array.from(categoryGroup.querySelectorAll('label'));
-                categoryLabels.forEach((label) => {
-                    const input = label.querySelector('input[type="radio"]');
-                    if (!input) return;
-                    const value = input.value;
-                    if (!categoryKeySet.has(value)) return;
-                    label.dataset.categoryKey = value;
-                    const meta = categoryMeta[value];
-                    if (meta && meta.label) {
-                        label.setAttribute('title', meta.label);
-                        input.setAttribute('aria-label', meta.label);
-                    }
-                });
+        const root = doc.documentElement;
+        if (root && NAV_PRIMARY.activePage) {
+            if (root.getAttribute('data-active-page') !== NAV_PRIMARY.activePage) {
+                root.setAttribute('data-active-page', NAV_PRIMARY.activePage);
+            }
+            const container = doc.querySelector('main .block-container');
+            if (container) {
+                container.classList.remove('page-transition-fade');
+                void container.offsetWidth;
+                container.classList.add('page-transition-fade');
             }
         }
-        updateActiveState();
-        return true;
     };
-    const schedule = (attempt = 0) => {
-        const ready = apply();
-        if (!ready && attempt < 10) {
-            setTimeout(() => schedule(attempt + 1), 120);
-        }
-    };
-    schedule();
+    ensureToggle();
+    apply();
 })();
 </script>
 """
@@ -4436,6 +4718,8 @@ with st.sidebar.expander("AIコパイロット", expanded=False):
 st.sidebar.divider()
 
 render_app_hero()
+
+render_onboarding_modal()
 
 render_tour_banner()
 
