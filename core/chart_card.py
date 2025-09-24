@@ -128,16 +128,16 @@ def _ensure_css():
         """
 <style>
 .chart-card { position: relative; margin:.35rem 0 1.2rem; border-radius:16px;
-  border:1px solid var(--border, rgba(11,31,58,0.18)); background:var(--panel,#ffffff);
-  box-shadow:0 16px 32px rgba(11,31,58,0.08); }
+  border:1px solid var(--border, rgba(var(--primary-rgb,11,31,59),0.18)); background:var(--panel,#ffffff);
+  box-shadow:0 16px 32px rgba(var(--primary-rgb,11,31,59),0.08); }
 .chart-toolbar { position: sticky; top:-1px; z-index:5;
   display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
-  padding:.45rem .75rem; background: linear-gradient(180deg, rgba(31,111,235,0.08), rgba(31,111,235,0.02));
-  border-bottom:1px solid var(--border, rgba(11,31,58,0.18)); }
+  padding:.45rem .75rem; background: linear-gradient(180deg, rgba(var(--accent-rgb,30,136,229),0.08), rgba(var(--accent-rgb,30,136,229),0.02));
+  border-bottom:1px solid var(--border, rgba(var(--primary-rgb,11,31,59),0.18)); }
 .chart-toolbar .stRadio, .chart-toolbar .stSelectbox, .chart-toolbar .stSlider,
 .chart-toolbar .stMultiSelect, .chart-toolbar .stCheckbox { margin-bottom:0 !important; }
-.chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:var(--ink,#0b1f3a); font-weight:600; }
-.chart-toolbar .stSlider label { color:var(--ink,#0b1f3a); }
+.chart-toolbar .stRadio > label, .chart-toolbar .stCheckbox > label { color:var(--ink,var(--primary,#0B1F3B)); font-weight:600; }
+.chart-toolbar .stSlider label { color:var(--ink,var(--primary,#0B1F3B)); }
 .chart-body { padding:.15rem .4rem .4rem; }
 </style>
 """,

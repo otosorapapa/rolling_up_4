@@ -5,13 +5,19 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
+from core.design_tokens import get_color, get_font_stack, rgba
 
-LIGHT_TEXT = "#0b1f3a"
-LIGHT_GRID = "rgba(11,31,58,0.1)"
-LIGHT_AXIS = "rgba(11,31,58,0.3)"
-DARK_TEXT = "#e6efff"
-DARK_GRID = "rgba(88,166,255,0.2)"
-DARK_AXIS = "rgba(143,181,221,0.35)"
+
+PRIMARY = get_color("primary")
+PRIMARY_TEXT = get_color("text")
+ACCENT_SOFT = get_color("accent", "soft")
+
+LIGHT_TEXT = PRIMARY_TEXT
+LIGHT_GRID = rgba(PRIMARY, 0.10)
+LIGHT_AXIS = rgba(PRIMARY, 0.28)
+DARK_TEXT = "#E6EFF8"
+DARK_GRID = rgba(ACCENT_SOFT, 0.20)
+DARK_AXIS = rgba(ACCENT_SOFT, 0.35)
 
 
 def apply_elegant_theme(fig: go.Figure, theme: str = "light") -> go.Figure:
@@ -19,53 +25,54 @@ def apply_elegant_theme(fig: go.Figure, theme: str = "light") -> go.Figure:
     if not st.session_state.get("elegant_on", True):
         return fig
     if theme == "dark":
+        dark_bg = "#0F1A2C"
         fig.update_layout(
             template="plotly_dark",
-            paper_bgcolor="#0f2138",
-            plot_bgcolor="#0f2138",
+            paper_bgcolor=dark_bg,
+            plot_bgcolor=dark_bg,
             font=dict(
-                family="Arial, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif",
+                family=get_font_stack("body"),
                 size=12,
                 color=DARK_TEXT,
             ),
             legend=dict(
-                bgcolor="rgba(15,33,56,0.85)",
-                bordercolor="rgba(143,181,221,0.24)",
+                bgcolor=rgba(PRIMARY, 0.65),
+                bordercolor=rgba(ACCENT_SOFT, 0.32),
                 borderwidth=1,
             ),
             hoverlabel=dict(
-                bgcolor="rgba(12,24,40,0.92)",
-                bordercolor="rgba(143,181,221,0.32)",
+                bgcolor=rgba(PRIMARY, 0.85),
+                bordercolor=rgba(ACCENT_SOFT, 0.35),
                 font=dict(color=DARK_TEXT),
             ),
         )
         grid = DARK_GRID
         axisline = DARK_AXIS
-        marker_border = "rgba(143,181,221,0.65)"
+        marker_border = rgba(ACCENT_SOFT, 0.45)
     else:
         fig.update_layout(
             template="plotly_white",
-            paper_bgcolor="#FFFFFF",
-            plot_bgcolor="#FFFFFF",
+            paper_bgcolor=get_color("surface"),
+            plot_bgcolor=get_color("surface"),
             font=dict(
-                family="Arial, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif",
+                family=get_font_stack("body"),
                 size=12,
                 color=LIGHT_TEXT,
             ),
             legend=dict(
-                bgcolor="rgba(255,255,255,.85)",
-                bordercolor="rgba(11,31,58,0.18)",
+                bgcolor=rgba(get_color("surface"), 0.88),
+                bordercolor=rgba(PRIMARY, 0.16),
                 borderwidth=1,
             ),
             hoverlabel=dict(
-                bgcolor="rgba(255,255,255,0.98)",
-                bordercolor="rgba(11,31,58,0.16)",
+                bgcolor=rgba(get_color("surface"), 0.98),
+                bordercolor=rgba(PRIMARY, 0.16),
                 font=dict(color=LIGHT_TEXT),
             ),
         )
         grid = LIGHT_GRID
         axisline = LIGHT_AXIS
-        marker_border = "rgba(11,31,58,0.24)"
+        marker_border = rgba(PRIMARY, 0.24)
     fig.update_xaxes(
         showgrid=True,
         gridcolor=grid,
