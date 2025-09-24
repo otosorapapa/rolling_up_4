@@ -150,6 +150,29 @@ ICON_SVGS: Dict[str, str] = {
     """,
 }
 
+METRIC_EXPLANATIONS: Dict[str, Dict[str, str]] = {
+    "年計総額": {
+        "footnote": "直近12ヶ月の売上を合計した値で、年間の規模感を把握します。",
+        "tooltip": "計算式: 直近12ヶ月の売上高を単純合計\n意味: 年間の累計売上を把握し、規模の推移を確認します。",
+    },
+    "年計YoY": {
+        "footnote": "前年同期比の成長率。直近12ヶ月と一年前の12ヶ月を比較します。",
+        "tooltip": "計算式: (直近12ヶ月売上 ÷ 前年同期12ヶ月売上) - 1\n意味: 年計ベースで前年からどれだけ伸びたかを示します。",
+    },
+    "前月差(Δ)": {
+        "footnote": "直近の年計モメンタム。前月とのギャップを確認します。",
+        "tooltip": "計算式: 今月の年計売上 - 先月の年計売上\n意味: 直近で売上が加速しているか減速しているかを把握します。",
+    },
+    "HHI(集中度)": {
+        "footnote": "Herfindahl-Hirschman Index でSKUの集中度を測定します。",
+        "tooltip": "計算式: 各SKUの売上シェアの二乗和\n意味: 売上が一部SKUに集中しているか分散しているかを示す指標です。",
+    },
+    "SKU数": {
+        "footnote": "年計期間中に売上が発生したSKUの件数です。",
+        "tooltip": "計算式: 期間内に売上が0より大きいSKUのユニーク件数\n意味: アクティブな商品点数を把握し、ポートフォリオの広さを確認します。",
+    },
+}
+
 
 def icon_svg(name: str) -> str:
     return ICON_SVGS.get(name, ICON_SVGS["info"])
@@ -237,7 +260,8 @@ def render_metric_cards(
         cols = st.columns(len(row))
         for col, card in zip(cols, row):
             icon_html = icon_svg(str(card.get("icon", "metrics")))
-            title = html.escape(str(card.get("title", "指標")))
+            title_text = str(card.get("title", "指標"))
+            title = html.escape(title_text)
             subtitle = card.get("subtitle")
             subtitle_html = (
                 f"<span class='mck-metric-card__subtitle'>{html.escape(str(subtitle))}</span>"
@@ -251,16 +275,53 @@ def render_metric_cards(
                 if footnote
                 else ""
             )
+            tooltip_raw = card.get("tooltip") or footnote
+            tooltip_text = str(tooltip_raw) if tooltip_raw is not None else ""
+            tooltip_attr = ""
+            aria_attr = ""
+            tab_attr = ""
+            info_html = ""
+            classes = ["mck-metric-card", "mck-animated"]
+            if tooltip_text.strip():
+                tooltip_attr = (
+                    " data-tooltip=\""
+                    + html.escape(tooltip_text, quote=True).replace("\n", "&#10;")
+                    + "\""
+                )
+                aria_label = f"{title_text}: {tooltip_text.replace('\n', ' ')}".strip()
+                aria_attr = f" aria-label=\"{html.escape(aria_label, quote=True)}\""
+                tab_attr = " tabindex=\"0\""
+                classes.append("has-tooltip")
+                info_html = (
+                    f"<span class='mck-metric-card__info' aria-hidden='true'>{icon_svg('info')}</span>"
+                )
+            class_attr = " ".join(classes)
             col.markdown(
                 """
-                <div class="mck-metric-card mck-animated">
-                  <span class="mck-metric-card__icon" aria-hidden="true">{icon}</span>
-                  <div class="mck-metric-card__title">{title}</div>
-                  {subtitle}
+                <div class="{classes}" role="group"{tooltip}{tab}{aria}>
+                  <div class="mck-metric-card__header">
+                    <span class="mck-metric-card__icon" aria-hidden="true">{icon}</span>
+                    <div class="mck-metric-card__title-group">
+                      <div class="mck-metric-card__title">{title}</div>
+                      {subtitle}
+                    </div>
+                    {info}
+                  </div>
                   <div class="mck-metric-card__value">{value}</div>
                   {footnote}
                 </div>
-                """.format(icon=icon_html, title=title, subtitle=subtitle_html, value=value, footnote=footnote_html),
+                """.format(
+                    classes=class_attr,
+                    tooltip=tooltip_attr,
+                    tab=tab_attr,
+                    aria=aria_attr,
+                    icon=icon_html,
+                    title=title,
+                    subtitle=subtitle_html,
+                    info=info_html,
+                    value=value,
+                    footnote=footnote_html,
+                ),
                 unsafe_allow_html=True,
             )
 
@@ -780,6 +841,17 @@ small, .text-small{
   width:18px;
   height:18px;
 }
+.mck-metric-card__header{
+  display:flex;
+  align-items:flex-start;
+  gap:0.75rem;
+}
+.mck-metric-card__title-group{
+  display:flex;
+  flex-direction:column;
+  gap:0.2rem;
+  flex:1;
+}
 .mck-metric-card__title{
   font-size:0.95rem;
   font-weight:600;
@@ -796,6 +868,24 @@ small, .text-small{
   font-family:var(--font-heading);
   color:var(--accent-strong);
   line-height:1.2;
+}
+.mck-metric-card__info{
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(31,111,235,0.12);
+  color:var(--accent-strong);
+  flex-shrink:0;
+}
+.mck-metric-card.has-tooltip .mck-metric-card__info{
+  cursor:help;
+}
+.mck-metric-card__info svg{
+  width:16px;
+  height:16px;
 }
 .mck-metric-card__footnote{
   font-size:0.78rem;
@@ -2344,42 +2434,44 @@ def render_dataset_metric_cards(
     hhi_val = compute_hhi(data_year, end_month)
     sku_count = int(data_year["product_code"].nunique()) if "product_code" in data_year.columns else 0
     yoy_val = kpi.get("yoy")
+    def _card(title: str, subtitle: str, value: str, icon: str) -> Dict[str, object]:
+        meta = METRIC_EXPLANATIONS.get(title, {})
+        tooltip = meta.get("tooltip") or meta.get("footnote")
+        return {
+            "title": title,
+            "subtitle": subtitle,
+            "value": value,
+            "icon": icon,
+            "footnote": meta.get("footnote"),
+            "tooltip": tooltip,
+        }
+
     cards: List[Dict[str, object]] = [
-        {
-            "title": "年計総額",
-            "subtitle": f"{end_month} 基準",
-            "value": format_amount(kpi.get("total_year_sum"), unit),
-            "icon": "dataset",
-        },
-        {
-            "title": "年計YoY",
-            "subtitle": "前年比", 
-            "value": f"{yoy_val * 100:.1f}%" if yoy_val is not None else "—",
-            "icon": "trend",
-        },
-        {
-            "title": "前月差(Δ)",
-            "subtitle": "モメンタム",
-            "value": format_amount(kpi.get("delta"), unit),
-            "icon": "delta",
-        },
+        _card(
+            "年計総額",
+            f"{end_month} 基準",
+            format_amount(kpi.get("total_year_sum"), unit),
+            "dataset",
+        ),
+        _card(
+            "年計YoY",
+            "前年比",
+            f"{yoy_val * 100:.1f}%" if yoy_val is not None else "—",
+            "trend",
+        ),
+        _card(
+            "前月差(Δ)",
+            "モメンタム",
+            format_amount(kpi.get("delta"), unit),
+            "delta",
+        ),
     ]
     if hhi_val is not None:
         cards.append(
-            {
-                "title": "HHI(集中度)",
-                "subtitle": "シェア分散",
-                "value": f"{hhi_val:.3f}",
-                "icon": "metrics",
-            }
+            _card("HHI(集中度)", "シェア分散", f"{hhi_val:.3f}", "metrics")
         )
     cards.append(
-        {
-            "title": "SKU数",
-            "subtitle": "アクティブ件数",
-            "value": f"{sku_count:,}",
-            "icon": "sku",
-        }
+        _card("SKU数", "アクティブ件数", f"{sku_count:,}", "sku")
     )
     render_icon_label(
         "metrics",
@@ -2969,6 +3061,111 @@ st.markdown(
       display:block;
       font-size:0.82rem;
       color:var(--muted);
+    }
+    .mck-flow-stepper{
+      display:flex;
+      align-items:center;
+      gap:0.75rem;
+      padding:0.85rem 1.1rem;
+      margin:1rem 0 1.5rem;
+      border-radius:18px;
+      border:1px solid var(--border);
+      background:var(--panel);
+      box-shadow:0 18px 36px rgba(11,44,74,0.12);
+      flex-wrap:wrap;
+    }
+    .mck-flow-stepper__item{
+      flex:1 1 160px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+      gap:0.45rem;
+      position:relative;
+    }
+    .mck-flow-stepper__indicator{
+      width:52px;
+      height:52px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(31,111,235,0.12);
+      color:var(--accent-strong);
+      border:2px solid rgba(31,111,235,0.22);
+      box-shadow:0 12px 26px rgba(11,44,74,0.16);
+      font-size:1.3rem;
+    }
+    .mck-flow-stepper__item[data-state="complete"] .mck-flow-stepper__indicator{
+      background:#1f6feb;
+      border-color:#1f6feb;
+      color:#ffffff;
+    }
+    .mck-flow-stepper__item[data-state="active"] .mck-flow-stepper__indicator{
+      background:#4f9ab8;
+      border-color:#4f9ab8;
+      color:#ffffff;
+      box-shadow:0 18px 40px rgba(79,154,184,0.26);
+    }
+    .mck-flow-stepper__item[data-state="pending"] .mck-flow-stepper__indicator{
+      background:rgba(31,111,235,0.08);
+      border-color:rgba(31,111,235,0.18);
+      color:var(--muted);
+    }
+    .mck-flow-stepper__label{
+      display:flex;
+      flex-direction:column;
+      gap:0.2rem;
+      font-weight:700;
+      color:var(--accent-strong);
+      font-size:1rem;
+      line-height:1.25;
+    }
+    .mck-flow-stepper__label .en{
+      font-size:0.8rem;
+      font-weight:600;
+      color:var(--muted);
+      letter-spacing:0.05em;
+    }
+    .mck-flow-stepper__hint{
+      margin:0;
+      font-size:0.82rem;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .mck-flow-stepper__item[data-state="active"] .mck-flow-stepper__hint{
+      color:var(--accent-strong);
+      font-weight:600;
+    }
+    .mck-flow-stepper__connector{
+      flex:0 0 32px;
+      height:3px;
+      border-radius:999px;
+      background:rgba(31,111,235,0.2);
+    }
+    .mck-flow-stepper__connector[data-state="complete"]{
+      background:rgba(31,111,235,0.6);
+      box-shadow:0 4px 12px rgba(31,111,235,0.35);
+    }
+    @media (max-width: 920px){
+      .mck-flow-stepper{
+        gap:0.6rem;
+        padding:0.75rem;
+      }
+      .mck-flow-stepper__connector{
+        display:none;
+      }
+      .mck-flow-stepper__item{
+        flex:1 1 calc(50% - 0.6rem);
+        padding:0.6rem 0.4rem;
+        border-radius:16px;
+        border:1px solid var(--border);
+        background:var(--panel-alt);
+      }
+      .mck-flow-stepper__indicator{
+        width:46px;
+        height:46px;
+      }
     }
     .mck-import-section{
       background:var(--panel);
@@ -3957,8 +4154,8 @@ def import_section(
         st.markdown("</div></section>", unsafe_allow_html=True)
 
 
-def render_import_stepper() -> None:
-    """Show progress for the import workflow with bilingual labels."""
+def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, str]]:
+    """Assemble import workflow steps and their current statuses."""
 
     template_key = get_active_template_key()
     template_config = get_template_config(template_key)
@@ -4023,12 +4220,6 @@ def render_import_stepper() -> None:
         )
     else:
         status_report = "upcoming"
-
-    STATUS_LABELS = {
-        "complete": "完了 / Done",
-        "current": "進行中 / In Progress",
-        "upcoming": "未着手 / Pending",
-    }
 
     steps: List[Dict[str, object]] = []
 
@@ -4157,6 +4348,23 @@ def render_import_stepper() -> None:
         }
     )
 
+    status_lookup = {step["key"]: step.get("status", "upcoming") for step in steps}
+    return steps, status_lookup
+
+
+def render_import_stepper() -> None:
+    """Show progress for the import workflow with bilingual labels."""
+
+    steps, _ = build_import_progress_steps()
+    if not steps:
+        return
+
+    STATUS_LABELS = {
+        "complete": "完了 / Done",
+        "current": "進行中 / In Progress",
+        "upcoming": "未着手 / Pending",
+    }
+
     items_html: List[str] = []
     for step in steps:
         status = step.get("status", "upcoming")
@@ -4204,6 +4412,147 @@ def render_import_stepper() -> None:
             """.format(items="".join(items_html)),
             unsafe_allow_html=True,
         )
+
+
+FLOW_STEP_SEQUENCE: List[Dict[str, str]] = [
+    {
+        "key": "template",
+        "label": "テンプレート選択",
+        "label_en": "Template",
+        "icon": icon_svg("template"),
+        "hint": "業種テンプレートと推奨指標を選択",
+    },
+    {
+        "key": "upload",
+        "label": "データ入力",
+        "label_en": "Data Input",
+        "icon": icon_svg("upload"),
+        "hint": "CSV/Excelをアップロードして整形",
+    },
+    {
+        "key": "quality",
+        "label": "データ確認",
+        "label_en": "Data Review",
+        "icon": icon_svg("quality"),
+        "hint": "欠測チェックと年計生成",
+    },
+    {
+        "key": "report",
+        "label": "指標表示",
+        "label_en": "KPI View",
+        "icon": icon_svg("metrics"),
+        "hint": "ダッシュボードで指標を確認",
+    },
+]
+
+FLOW_PAGE_OVERRIDES: Dict[str, str] = {
+    "settings": "template",
+    "saved": "report",
+}
+
+FLOW_CATEGORY_DEFAULT: Dict[str, str] = {
+    "input": "upload",
+    "report": "report",
+    "simulation": "report",
+}
+
+
+def render_process_step_bar(page_key: str) -> None:
+    """Render a compact horizontal step bar showing the overall workflow."""
+
+    steps, status_lookup = build_import_progress_steps()
+    if not steps:
+        return
+
+    page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key, {})
+    category = page_meta.get("category", "")
+
+    active_key = FLOW_PAGE_OVERRIDES.get(page_key)
+    if not active_key:
+        if page_key == "import":
+            active_key = next(
+                (step.get("key") for step in steps if step.get("status") == "current"),
+                None,
+            )
+            if not active_key:
+                if status_lookup.get("report") == "complete":
+                    active_key = "report"
+                elif status_lookup.get("quality") == "complete":
+                    active_key = "quality"
+                elif status_lookup.get("upload") == "complete":
+                    active_key = "upload"
+                else:
+                    active_key = "template"
+        else:
+            active_key = FLOW_CATEGORY_DEFAULT.get(category)
+            if not active_key:
+                if status_lookup.get("report") == "complete":
+                    active_key = "report"
+                else:
+                    next_incomplete = next(
+                        (step.get("key") for step in steps if step.get("status") != "complete"),
+                        None,
+                    )
+                    active_key = next_incomplete or "template"
+
+    state_lookup: Dict[str, str] = {}
+    for step_def in FLOW_STEP_SEQUENCE:
+        key = step_def["key"]
+        status = status_lookup.get(key, "upcoming")
+        if key == active_key:
+            state_lookup[key] = "active"
+        elif status == "complete":
+            state_lookup[key] = "complete"
+        else:
+            state_lookup[key] = "pending"
+
+    items_html: List[str] = []
+    for idx, step_def in enumerate(FLOW_STEP_SEQUENCE):
+        key = step_def["key"]
+        state = state_lookup.get(key, "pending")
+        label_jp = html.escape(step_def["label"])
+        label_en = html.escape(step_def["label_en"])
+        hint = html.escape(step_def["hint"])
+        aria_label = html.escape(f"{step_def['label']} - {step_def['hint']}", quote=True)
+        items_html.append(
+            """
+            <div class="mck-flow-stepper__item" data-state="{state}" role="listitem" aria-label="{aria}">
+              <span class="mck-flow-stepper__indicator" aria-hidden="true">{icon}</span>
+              <div class="mck-flow-stepper__label">
+                <span class="jp">{label}</span>
+                <span class="en">{label_en}</span>
+              </div>
+              <p class="mck-flow-stepper__hint">{hint}</p>
+            </div>
+            """.format(
+                state=state,
+                aria=aria_label,
+                icon=step_def.get("icon", icon_svg("info")),
+                label=label_jp,
+                label_en=label_en,
+                hint=hint,
+            )
+        )
+        if idx < len(FLOW_STEP_SEQUENCE) - 1:
+            connector_state = (
+                "complete"
+                if state_lookup.get(key) in ("complete", "active")
+                else "pending"
+            )
+            items_html.append(
+                """
+                <div class="mck-flow-stepper__connector" data-state="{state}" aria-hidden="true"></div>
+                """.format(state=connector_state)
+            )
+
+    st.markdown(
+        """
+        <div class="mck-flow-stepper" role="list" aria-label="主要作業ステップ">
+          {items}
+        </div>
+        """.format(items="".join(items_html)),
+        unsafe_allow_html=True,
+    )
 
 
 def render_breadcrumbs(category_key: str, page_key: str) -> None:
@@ -4758,6 +5107,8 @@ st.sidebar.divider()
 
 render_app_hero()
 
+render_process_step_bar(page_key)
+
 render_onboarding_modal()
 
 render_tour_banner()
@@ -4918,6 +5269,7 @@ No additional recommended columns in this template."""
                             "value": format_template_metric(metric),
                             "icon": detect_metric_icon(metric.get("name", "")),
                             "footnote": metric.get("description", ""),
+                            "tooltip": metric.get("description", ""),
                         }
                     )
                 render_metric_cards(metric_cards, columns=min(2, len(metric_cards)))
@@ -5273,13 +5625,19 @@ elif page == "ダッシュボード":
     )
     if metrics_list:
         st.markdown("#### テンプレート推奨KPI")
-        for idx in range(0, len(metrics_list), 3):
-            row_metrics = metrics_list[idx : idx + 3]
-            cols = st.columns(len(row_metrics))
-            for col, metric in zip(cols, row_metrics):
-                col.metric(metric.get("name", "指標"), format_template_metric(metric))
-                if metric.get("description"):
-                    col.caption(metric["description"])
+        metric_cards: List[Dict[str, object]] = []
+        for metric in metrics_list:
+            metric_cards.append(
+                {
+                    "title": metric.get("name", "指標"),
+                    "subtitle": "Template KPI",
+                    "value": format_template_metric(metric),
+                    "icon": detect_metric_icon(metric.get("name", "")),
+                    "footnote": metric.get("description", ""),
+                    "tooltip": metric.get("description", ""),
+                }
+            )
+        render_metric_cards(metric_cards, columns=min(3, len(metric_cards)))
 
     snap = (
         st.session_state.data_year[st.session_state.data_year["month"] == end_m]
