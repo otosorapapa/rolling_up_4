@@ -3395,6 +3395,7 @@ PENDING_NAV_CATEGORY_KEY = "_pending_nav_category"
 PENDING_NAV_PAGE_KEY = "_pending_nav_page"
 NAV_PRIMARY_STATE_KEY = "nav_primary"
 PENDING_NAV_PRIMARY_KEY = "_pending_nav_primary"
+PENDING_NAV_SUB_PREFIX = "_pending_nav_sub_"
 
 
 def _queue_nav_category(category: Optional[str], *, rerun_on_lock: bool = False) -> None:
@@ -3428,7 +3429,11 @@ def set_active_page(page_key: str, *, rerun_on_lock: bool = False) -> None:
     primary_key = PAGE_TO_PRIMARY_LOOKUP.get(page_key)
     if primary_key:
         sub_state_key = f"nav_sub_{primary_key}"
-        st.session_state[sub_state_key] = page_key
+        try:
+            st.session_state[sub_state_key] = page_key
+        except StreamlitAPIException:
+            st.session_state[f"{PENDING_NAV_SUB_PREFIX}{primary_key}"] = page_key
+            rerun_required = True
         try:
             st.session_state[NAV_PRIMARY_STATE_KEY] = primary_key
         except StreamlitAPIException:
@@ -4339,8 +4344,12 @@ if (
 
 for item in PRIMARY_NAV_MENU:
     state_key = f"nav_sub_{item['key']}"
+    pending_sub_key = f"{PENDING_NAV_SUB_PREFIX}{item['key']}"
+    pending_value = st.session_state.pop(pending_sub_key, None)
     if state_key not in st.session_state and item["pages"]:
         st.session_state[state_key] = item["pages"][0]
+    if pending_value is not None and pending_value in item["pages"]:
+        st.session_state[state_key] = pending_value
     if current_page_key in item["pages"]:
         st.session_state[state_key] = current_page_key
 
