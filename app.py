@@ -6086,18 +6086,20 @@ def import_section(
                 )
             )
         st.markdown(
-            """
-            <section class="mck-import-section{accent_class}" data-section="{number:02d}">
-              <header class="mck-import-section__header">
-                <span class="mck-import-section__badge">{number:02d}</span>
-                {icon}
-                <div class="mck-import-section__titles">
-                  <span class="jp">{title_ja}</span>
-                  <span class="en">{title_en}</span>
-                </div>
-              </header>
-              <div class="mck-import-section__body">
-            """.format(
+            textwrap.dedent(
+                """
+                <section class="mck-import-section{accent_class}" data-section="{number:02d}">
+                  <header class="mck-import-section__header">
+                    <span class="mck-import-section__badge">{number:02d}</span>
+                    {icon}
+                    <div class="mck-import-section__titles">
+                      <span class="jp">{title_ja}</span>
+                      <span class="en">{title_en}</span>
+                    </div>
+                  </header>
+                  <div class="mck-import-section__body">
+                """
+            ).format(
                 accent_class=accent_class,
                 number=number,
                 icon=icon_block,
