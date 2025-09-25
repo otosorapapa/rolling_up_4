@@ -4370,7 +4370,7 @@ def _render_funds_tab(
             )
         else:
             table_df = pd.DataFrame(flows)
-            table_df["金額({unit})"] = table_df["amount"].astype(float) / unit_scale
+            table_df[f"金額({unit})"] = table_df["amount"].astype(float) / unit_scale
             table_df["構成比(%)"] = table_df["ratio"].astype(float) * 100.0
             display_df = table_df[["item", f"金額({unit})", "構成比(%)"]].rename(
                 columns={"item": "項目"}
