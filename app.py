@@ -5512,8 +5512,13 @@ SIDEBAR_CATEGORY_STYLES = {
         "color": "#f2994a",
         "description": "異常検知やアラートで将来シナリオやリスクを検証します。",
     },
+    "support": {
+        "label": "サポート",
+        "color": "#6c5ce7",
+        "description": "チュートリアルやヘルプドキュメントで操作方法を確認できます。",
+    },
 }
-SIDEBAR_CATEGORY_ORDER = ["input", "report", "simulation"]
+SIDEBAR_CATEGORY_ORDER = ["input", "report", "simulation", "support"]
 
 SIDEBAR_PAGES = [
     {
@@ -5583,9 +5588,9 @@ SIDEBAR_PAGES = [
         "key": "import",
         "page": "データ取込",
         "icon": "📥",
-        "title": "データ取込",
-        "tagline": "CSV/Excelアップロード",
-        "tooltip": "CSVやExcelの月次データを取り込み、分析用データを整えます。",
+        "title": "データ管理",
+        "tagline": "CSV/Excelアップロードとテンプレート管理",
+        "tooltip": "CSV/Excelの取込、テンプレート選択、デモデータ読込みをこの画面に集約しました。",
         "category": "input",
     },
     {
@@ -5624,6 +5629,15 @@ SIDEBAR_PAGES = [
         "tooltip": "現在の設定や比較条件を保存し、ワンクリックで再現します。",
         "category": "input",
     },
+    {
+        "key": "help",
+        "page": "ヘルプ/チュートリアル",
+        "icon": "❓",
+        "title": "ヘルプ/チュートリアル",
+        "tagline": "操作ガイドと導線ツアー",
+        "tooltip": "初回利用者向けの操作手順やFAQ、ツアー動画へのリンクをまとめています。",
+        "category": "support",
+    },
 ]
 
 SIDEBAR_PAGE_LOOKUP = {page["key"]: page for page in SIDEBAR_PAGES}
@@ -5633,17 +5647,10 @@ page_lookup = {page["key"]: page["page"] for page in SIDEBAR_PAGES}
 
 PRIMARY_NAV_MENU = [
     {
-        "key": "home",
-        "label": SIDEBAR_PAGE_LOOKUP["dashboard"]["title"],
-        "icon": SIDEBAR_PAGE_LOOKUP["dashboard"].get("icon", "🏠"),
-        "description": SIDEBAR_PAGE_LOOKUP["dashboard"].get("tooltip", ""),
-        "pages": ["dashboard"],
-    },
-    {
-        "key": "executive",
+        "key": "dashboard",
         "label": SIDEBAR_PAGE_LOOKUP["executive"]["title"],
         "icon": SIDEBAR_PAGE_LOOKUP["executive"].get("icon", "💼"),
-        "description": SIDEBAR_PAGE_LOOKUP["executive"].get("tooltip", ""),
+        "description": "KGI/KPIを1画面で俯瞰できる経営ダッシュボードです。",
         "pages": ["executive"],
     },
     {
@@ -5657,22 +5664,29 @@ PRIMARY_NAV_MENU = [
         "key": "analysis",
         "label": "分析ツール",
         "icon": SIDEBAR_PAGE_LOOKUP["compare"].get("icon", "🔍"),
-        "description": "比較ビューやSKU詳細、相関分析などの深掘りページをまとめています。",
-        "pages": ["compare", "detail", "correlation", "category"],
-    },
-    {
-        "key": "monitor",
-        "label": "監視アラート",
-        "icon": SIDEBAR_PAGE_LOOKUP["anomaly"].get("icon", "⚠️"),
-        "description": "異常検知とアラート機能でリスクを素早く把握します。",
-        "pages": ["anomaly", "alert"],
+        "description": "比較ビューやSKU詳細、相関分析などの深掘り分析を行います。",
+        "pages": ["dashboard", "compare", "detail", "correlation", "category"],
     },
     {
         "key": "data",
-        "label": "データ設定",
+        "label": "データ管理",
         "icon": SIDEBAR_PAGE_LOOKUP["import"].get("icon", "📥"),
-        "description": "データ取込や設定、保存ビューを一箇所にまとめました。",
+        "description": "アップロード、テンプレート選択、保存ビューを集約したデータ管理ハブです。",
         "pages": ["import", "settings", "saved"],
+    },
+    {
+        "key": "alerts",
+        "label": "アラート",
+        "icon": SIDEBAR_PAGE_LOOKUP["alert"].get("icon", "🚨"),
+        "description": "閾値アラートと異常検知でリスクサインを把握します。",
+        "pages": ["alert", "anomaly"],
+    },
+    {
+        "key": "help",
+        "label": SIDEBAR_PAGE_LOOKUP["help"]["title"],
+        "icon": SIDEBAR_PAGE_LOOKUP["help"].get("icon", "❓"),
+        "description": SIDEBAR_PAGE_LOOKUP["help"].get("tooltip", ""),
+        "pages": ["help"],
     },
 ]
 
@@ -7244,7 +7258,7 @@ if (
     or st.session_state.data_monthly is None
 ):
     st.info(
-        "左メニューの「データ取込」からCSVまたはExcelファイルをアップロードしてください。\n"
+        "左メニューの「データ管理」からCSVまたはExcelファイルをアップロードしてください。\n"
         "Upload CSV or Excel files from the “Data Import” menu on the left.\n\n"
         "サンプルテンプレートを活用すると、初期セットアップを数分で体験できます。\n"
         "Use the sample template to experience the initial setup in minutes."
@@ -7266,7 +7280,9 @@ if (
 # 1) データ取込
 if page == "データ取込":
     section_header(
-        "データ取込", "ファイルのマッピングと品質チェックを行います。", icon="📥"
+        "データ管理",
+        "CSV/Excel取込、テンプレート選択、デモデータ読込みを一箇所で実行します。",
+        icon="📥",
     )
 
     render_import_stepper()
@@ -7678,131 +7694,200 @@ elif page == "経営ダッシュボード":
     if "チャネル" not in df_sales.columns:
         df_sales["チャネル"] = df_sales["店舗"].astype(str)
     df_sales["月"] = df_sales["日付"].dt.to_period("M").astype(str)
-
-    def _get_default_state(key: str, default: str, options: List[str]) -> str:
-        value = st.session_state.get(key, default)
-        if value not in options:
-            value = default
-        return value
-
-    periods = ["今月", "先月", "過去3か月", "今年"]
-    stores = ["全店舗"] + sorted(df_sales["店舗"].astype(str).unique().tolist())
-    available_months = sorted(df_sales["月"].unique().tolist())
-
-    period_default = _get_default_state("executive_period", "今月", periods)
-    store_default = _get_default_state("executive_store", "全店舗", stores)
-    anchor_default = st.session_state.get("executive_anchor_month", available_months[-1])
-
-    filter_cols = st.columns([1.2, 1.2, 1.2, 0.8])
-    with filter_cols[0]:
-        period = st.selectbox(
-            "期間",
-            periods,
-            index=periods.index(period_default),
-            key="executive_period_select",
-        )
-    with filter_cols[1]:
-        store = st.selectbox(
-            "店舗",
-            stores,
-            index=stores.index(store_default),
-            key="executive_store_select",
-        )
-    with filter_cols[2]:
-        anchor_index = (
-            available_months.index(anchor_default)
-            if anchor_default in available_months
-            else len(available_months) - 1
-        )
-        anchor_month = st.selectbox(
-            "基準月",
-            available_months,
-            index=anchor_index,
-            key="executive_anchor_select",
-        )
-    with filter_cols[3]:
-        snapshot = df_sales[df_sales["月"] == anchor_month]
-        st.download_button(
-            "CSV出力",
-            data=snapshot.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"sales_snapshot_{anchor_month}.csv",
-            mime="text/csv",
-            help="基準月の明細をCSVで保存します。",
-        )
-
-    st.session_state["executive_period"] = period
-    st.session_state["executive_store"] = store
-    st.session_state["executive_anchor_month"] = anchor_month
-
-    try:
-        anchor_date = pd.Period(anchor_month, freq="M").to_timestamp(how="end")
-    except Exception:
-        anchor_date = df_sales["日付"].max()
-
-    if pd.isna(anchor_date):
+    df_sales["month_period"] = df_sales["日付"].dt.to_period("M")
+    latest_period = df_sales["month_period"].max()
+    if pd.isna(latest_period):
         st.warning("有効な日付が含まれていません。")
         st.stop()
 
-    def _resolve_period_range(label: str, anchor: pd.Timestamp):
-        anchor_month = anchor.to_period("M")
-        if label == "今月":
-            current_month = anchor_month
-            current_start = current_month.to_timestamp(how="start")
-            current_end = current_month.to_timestamp(how="end")
-            prev_month = anchor_month - 1
-            prev_start = prev_month.to_timestamp(how="start")
-            prev_end = prev_month.to_timestamp(how="end")
-        elif label == "先月":
-            current_month = anchor_month - 1
-            current_start = current_month.to_timestamp(how="start")
-            current_end = current_month.to_timestamp(how="end")
-            prev_month = current_month - 1
-            prev_start = prev_month.to_timestamp(how="start")
-            prev_end = prev_month.to_timestamp(how="end")
-        elif label == "過去3か月":
-            current_start = (anchor_month - 2).to_timestamp(how="start")
-            current_end = anchor_month.to_timestamp(how="end")
-            prev_start = (anchor_month - 5).to_timestamp(how="start")
-            prev_end = (anchor_month - 3).to_timestamp(how="end")
-        elif label == "今年":
-            current_start = pd.Timestamp(anchor.year, 1, 1)
-            current_end = anchor_month.to_timestamp(how="end")
-            prev_start = current_start - pd.DateOffset(years=1)
-            prev_end = current_end - pd.DateOffset(years=1)
-        else:
-            current_start = anchor_month.to_timestamp(how="start")
-            current_end = anchor_month.to_timestamp(how="end")
-            prev_month = anchor_month - 1
-            prev_start = prev_month.to_timestamp(how="start")
-            prev_end = prev_month.to_timestamp(how="end")
-        return (current_start, current_end), (prev_start, prev_end)
+    period_options = ["直近12ヶ月", "今年", "今月"]
+    store_options = ["全店舗"] + sorted(df_sales["店舗"].astype(str).unique().tolist())
+    unit_options = ["円", "千円", "百万円"]
 
-    (current_start, current_end), (prev_start, prev_end) = _resolve_period_range(
-        period, anchor_date
+    filters_state = st.session_state.setdefault(
+        "executive_filters",
+        {"period": "直近12ヶ月", "store": "全店舗", "unit": "円"},
+    )
+    if filters_state.get("period") not in period_options:
+        filters_state["period"] = "直近12ヶ月"
+    if filters_state.get("store") not in store_options:
+        filters_state["store"] = "全店舗"
+    if filters_state.get("unit") not in unit_options:
+        filters_state["unit"] = "円"
+
+    def resolve_periods(label: str, latest: pd.Period) -> pd.PeriodIndex:
+        if label == "直近12ヶ月":
+            start = latest - 11
+            return pd.period_range(start, latest, freq="M")
+        if label == "今年":
+            start = pd.Period(year=latest.year, month=1, freq="M")
+            return pd.period_range(start, latest, freq="M")
+        return pd.PeriodIndex([latest], freq="M")
+
+    def shift_periods(periods: pd.PeriodIndex, months: int) -> pd.PeriodIndex:
+        if len(periods) == 0:
+            return pd.PeriodIndex([], freq="M")
+        return periods - months
+
+    def period_df(periods: pd.PeriodIndex) -> pd.DataFrame:
+        if len(periods) == 0:
+            return df_sales.iloc[0:0].copy()
+        return df_sales[df_sales["month_period"].isin(periods)].copy()
+
+    def apply_store_filter(source: pd.DataFrame) -> pd.DataFrame:
+        if filters_state["store"] == "全店舗":
+            return source.copy()
+        return source[source["店舗"] == filters_state["store"]].copy()
+
+    def format_period_window(periods: pd.PeriodIndex) -> str:
+        if len(periods) == 0:
+            return "—"
+        start = periods.min().strftime("%Y-%m")
+        end = periods.max().strftime("%Y-%m")
+        return f"{start}〜{end}" if start != end else start
+
+    filter_cols = st.columns([2.6, 1.1, 1.1, 1.1])
+    with filter_cols[1]:
+        period = st.selectbox(
+            "期間",
+            period_options,
+            index=period_options.index(filters_state["period"]),
+            key="executive_period_select",
+        )
+    filters_state["period"] = period
+    with filter_cols[2]:
+        store = st.selectbox(
+            "店舗",
+            store_options,
+            index=store_options.index(filters_state["store"]),
+            key="executive_store_select",
+        )
+    filters_state["store"] = store
+    with filter_cols[3]:
+        unit = st.selectbox(
+            "単位",
+            unit_options,
+            index=unit_options.index(filters_state["unit"]),
+            key="executive_unit_select",
+        )
+    filters_state["unit"] = unit
+
+    st.session_state["executive_period"] = period
+    st.session_state["executive_store"] = store
+    st.session_state["executive_unit"] = unit
+
+    current_periods = resolve_periods(period, latest_period)
+    prev_periods = shift_periods(current_periods, 12)
+    anchor_period = current_periods.max() if len(current_periods) else latest_period
+    anchor_month = anchor_period.strftime("%Y-%m")
+    st.session_state["executive_anchor_month"] = anchor_month
+    current_window_label = format_period_window(current_periods)
+
+    unit_scale_map = {"円": 1.0, "千円": 1_000.0, "百万円": 1_000_000.0}
+    unit_scale = unit_scale_map.get(unit, 1.0)
+    unit_suffix = "" if unit == "円" else unit
+
+    def format_currency(value: Optional[float], *, decimals: Optional[int] = None) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, float) and (math.isnan(value) or not math.isfinite(value)):
+            return "—"
+        scaled = value / unit_scale if unit_scale else value
+        places = decimals
+        if places is None:
+            places = 0 if unit_scale == 1.0 else 1
+        return f"¥{scaled:,.{places}f}{unit_suffix}"
+
+    def format_currency_signed(value: Optional[float]) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, float) and (math.isnan(value) or not math.isfinite(value)):
+            return None
+        scaled = value / unit_scale if unit_scale else value
+        places = 0 if unit_scale == 1.0 else 1
+        sign = "+" if scaled > 0 else ("-" if scaled < 0 else "±")
+        label = unit_suffix or "円"
+        return f"{sign}{abs(scaled):,.{places}f}{label}"
+
+    def format_percentage(value: Optional[float]) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, float) and math.isnan(value):
+            return "—"
+        return f"{value * 100:.1f}%"
+
+    scope_df = apply_store_filter(df_sales)
+    current_df = scope_df[scope_df["month_period"].isin(current_periods)].copy()
+    prev_df = scope_df[scope_df["month_period"].isin(prev_periods)].copy()
+    current_all_df = df_sales[df_sales["month_period"].isin(current_periods)].copy()
+
+    kgi_periods = resolve_periods("直近12ヶ月", latest_period)
+    kgi_prev_periods = shift_periods(kgi_periods, 12)
+    kgi_scope = apply_store_filter(period_df(kgi_periods))
+    kgi_prev_scope = apply_store_filter(period_df(kgi_prev_periods))
+
+    kgi_sales = float(kgi_scope["売上"].sum()) if not kgi_scope.empty else 0.0
+    kgi_prev_sales = (
+        float(kgi_prev_scope["売上"].sum()) if not kgi_prev_scope.empty else 0.0
+    )
+    kgi_sales_delta_pct = (
+        ((kgi_sales - kgi_prev_sales) / kgi_prev_sales) * 100
+        if kgi_prev_sales
+        else None
     )
 
-    scope_df = df_sales.copy()
-    if store != "全店舗":
-        scope_df = scope_df[scope_df["店舗"] == store]
+    kgi_gross = float(kgi_scope["粗利"].sum()) if not kgi_scope.empty else 0.0
+    kgi_prev_gross = (
+        float(kgi_prev_scope["粗利"].sum()) if not kgi_prev_scope.empty else 0.0
+    )
+    kgi_margin_rate = kgi_gross / kgi_sales if kgi_sales else float("nan")
+    kgi_prev_margin_rate = kgi_prev_gross / kgi_prev_sales if kgi_prev_sales else None
+    kgi_margin_delta_pt = (
+        (kgi_margin_rate - kgi_prev_margin_rate) * 100
+        if kgi_prev_margin_rate is not None and not math.isnan(kgi_margin_rate)
+        else None
+    )
+    kgi_margin_pct = (
+        kgi_margin_rate * 100 if not math.isnan(kgi_margin_rate) else None
+    )
 
-    current_df = scope_df[
-        (scope_df["日付"] >= current_start) & (scope_df["日付"] <= current_end)
-    ].copy()
-    prev_df = scope_df[
-        (scope_df["日付"] >= prev_start) & (scope_df["日付"] <= prev_end)
-    ].copy()
-    current_all_df = df_sales[
-        (df_sales["日付"] >= current_start) & (df_sales["日付"] <= current_end)
-    ].copy()
+    baseline_cash = 1_000_000.0
+    cash_multiplier = 0.25
+    kgi_end = kgi_periods.max().to_timestamp(how="end") if len(kgi_periods) else anchor_period.to_timestamp(how="end")
+    kgi_prev_end = (
+        kgi_prev_periods.max().to_timestamp(how="end") if len(kgi_prev_periods) else None
+    )
+    cumulative_kgi = float(scope_df[scope_df["日付"] <= kgi_end]["粗利"].sum())
+    cumulative_kgi_prev = (
+        float(scope_df[scope_df["日付"] <= kgi_prev_end]["粗利"].sum())
+        if kgi_prev_end is not None
+        else None
+    )
+    kgi_cash_current = baseline_cash + cumulative_kgi * cash_multiplier
+    kgi_cash_prev = (
+        baseline_cash + cumulative_kgi_prev * cash_multiplier
+        if cumulative_kgi_prev is not None
+        else None
+    )
+    kgi_cash_delta_pct = (
+        ((kgi_cash_current - kgi_cash_prev) / kgi_cash_prev) * 100
+        if kgi_cash_prev
+        else None
+    )
 
-    current_sales = float(current_df["売上"].sum())
-    prev_sales = float(prev_df["売上"].sum())
+    current_end = anchor_period.to_timestamp(how="end")
+    prev_end = (
+        prev_periods.max().to_timestamp(how="end") if len(prev_periods) else None
+    )
+
+    current_sales = float(current_df["売上"].sum()) if not current_df.empty else 0.0
+    prev_sales = float(prev_df["売上"].sum()) if not prev_df.empty else 0.0
     sales_delta_pct = (
         ((current_sales - prev_sales) / prev_sales) * 100 if prev_sales else None
     )
 
-    current_gross = float(current_df["粗利"].sum())
-    prev_gross = float(prev_df["粗利"].sum())
+    current_gross = float(current_df["粗利"].sum()) if not current_df.empty else 0.0
+    prev_gross = float(prev_df["粗利"].sum()) if not prev_df.empty else 0.0
     gross_delta_pct = (
         ((current_gross - prev_gross) / prev_gross) * 100 if prev_gross else None
     )
@@ -7814,16 +7899,18 @@ elif page == "経営ダッシュボード":
         else None
     )
 
-    baseline_cash = 1_000_000.0
-    cash_multiplier = 0.25
-    cumulative_current = float(
-        df_sales[df_sales["日付"] <= current_end]["粗利"].sum()
+    cumulative_current = float(scope_df[scope_df["日付"] <= current_end]["粗利"].sum())
+    cumulative_prev = (
+        float(scope_df[scope_df["日付"] <= prev_end]["粗利"].sum())
+        if prev_end is not None
+        else None
     )
-    cumulative_prev = float(
-        df_sales[df_sales["日付"] <= prev_end]["粗利"].sum()
-    ) if prev_end is not None else 0.0
     cash_current = baseline_cash + cumulative_current * cash_multiplier
-    cash_prev = baseline_cash + cumulative_prev * cash_multiplier
+    cash_prev = (
+        baseline_cash + cumulative_prev * cash_multiplier
+        if cumulative_prev is not None
+        else None
+    )
     cash_delta_pct = (
         ((cash_current - cash_prev) / cash_prev) * 100 if cash_prev else None
     )
@@ -7832,49 +7919,59 @@ elif page == "経営ダッシュボード":
     months_in_period = (
         sorted(current_all_df["月"].unique().tolist()) if not current_all_df.empty else []
     )
+    if current_all_df.empty:
+        days_in_period = 0
+    else:
+        days_in_period = (
+            current_all_df["日付"].max() - current_all_df["日付"].min()
+        ).days + 1
     expense_period = (
         expense_long[expense_long["month"].isin(months_in_period)]
         if months_in_period and not expense_long.empty
         else pd.DataFrame()
     )
     total_fixed_cost = float(expense_period["amount"].sum()) if not expense_period.empty else 0.0
-    store_count_actual = max(df_sales["店舗"].nunique(), 1)
+    store_count_actual = max(scope_df["店舗"].nunique(), 1)
     fixed_cost_per_store = total_fixed_cost / store_count_actual if total_fixed_cost else 0.0
 
-    margin_caption = "粗利率 —"
-    if current_sales:
-        margin_caption = f"粗利率 {margin_rate * 100:.1f}%"
+    kgi_margin_caption = "粗利率 —"
+    if kgi_margin_pct is not None:
+        kgi_margin_caption = f"平均粗利率 {kgi_margin_pct:.1f}%"
+
+    kgi_window_label = format_period_window(kgi_periods)
 
     primary_cards = [
         {
-            "title": "売上総額",
-            "value": f"¥{current_sales:,.0f}",
-            "delta": format_directional_delta(sales_delta_pct),
+            "title": "年計売上",
+            "value": format_currency(kgi_sales),
+            "delta": format_directional_delta(kgi_sales_delta_pct),
             "variant": "is-primary",
-            "caption": f"{period}｜基準 {anchor_month}",
+            "caption": f"{kgi_window_label} 年計",
             "tab": "売上",
         },
         {
-            "title": "粗利総額",
-            "value": f"¥{current_gross:,.0f}",
-            "delta": format_directional_delta(gross_delta_pct),
+            "title": "粗利率",
+            "value": format_percentage(kgi_margin_rate),
+            "delta": format_directional_delta(kgi_margin_delta_pt, suffix="pt")
+            if kgi_margin_delta_pt is not None
+            else None,
             "variant": "is-accent",
-            "caption": margin_caption,
+            "caption": kgi_margin_caption,
             "tab": "粗利",
         },
         {
             "title": "キャッシュ残高",
-            "value": f"¥{cash_current:,.0f}",
-            "delta": format_directional_delta(cash_delta_pct),
+            "value": format_currency(kgi_cash_current),
+            "delta": format_directional_delta(kgi_cash_delta_pct),
             "variant": "is-success",
-            "caption": "粗利累積×0.25換算",
+            "caption": "累積粗利×0.25換算",
             "tab": "資金",
         },
     ]
     render_clickable_kpi_cards(primary_cards)
 
     st.caption(
-        f"表示条件：{period} ｜ 基準月：{anchor_month} ｜ 対象店舗：{store}"
+        f"表示条件：{period} ｜ 対象期間：{current_window_label} ｜ 店舗：{store} ｜ 単位：{unit}"
     )
 
     tab_labels = ["売上", "粗利", "在庫", "資金"]
@@ -7897,7 +7994,7 @@ elif page == "経営ダッシュボード":
         sales_cards = [
             {
                 "title": "売上総額",
-                "value": f"¥{current_sales:,.0f}",
+                "value": format_currency(current_sales),
                 "delta": format_directional_delta(sales_delta_pct),
                 "variant": "is-primary",
                 "caption": f"{period}の売上",
@@ -7909,14 +8006,12 @@ elif page == "経営ダッシュボード":
                 if goal_delta is not None
                 else None,
                 "variant": "is-accent",
-                "caption": f"目標 ¥{sales_goal:,.0f}",
+                "caption": f"目標 {format_currency(sales_goal)}",
             },
             {
                 "title": "前期比",
                 "value": format_directional_delta(sales_delta_pct) or "—",
-                "delta": (
-                    f"{yoy_amount:+,.0f}円" if yoy_amount is not None else None
-                ),
+                "delta": format_currency_signed(yoy_amount),
                 "variant": "is-success",
                 "caption": "金額差分を併記",
             },
@@ -8114,14 +8209,14 @@ elif page == "経営ダッシュボード":
         gross_cards = [
             {
                 "title": "粗利総額",
-                "value": f"¥{current_gross:,.0f}",
+                "value": format_currency(current_gross),
                 "delta": format_directional_delta(gross_delta_pct),
                 "variant": "is-accent",
-                "caption": "期間粗利",
+                "caption": f"{period}の粗利",
             },
             {
                 "title": "粗利率",
-                "value": f"{margin_pct:.1f}%" if margin_pct is not None else "—",
+                "value": format_percentage(margin_rate),
                 "delta": format_directional_delta(margin_delta, suffix="pt")
                 if margin_delta is not None
                 else None,
@@ -8137,7 +8232,7 @@ elif page == "経営ダッシュボード":
                 if gross_goal_delta is not None
                 else None,
                 "variant": "is-success",
-                "caption": f"目標 ¥{gross_goal:,.0f}",
+                "caption": f"目標 {format_currency(gross_goal)}",
             },
         ]
         render_kpi_cards(gross_cards)
@@ -8418,14 +8513,14 @@ elif page == "経営ダッシュボード":
         cash_cards = [
             {
                 "title": "キャッシュ残高",
-                "value": f"¥{cash_current:,.0f}",
+                "value": format_currency(cash_current),
                 "delta": format_directional_delta(cash_delta_pct),
                 "variant": "is-primary",
                 "caption": "粗利累積換算",
             },
             {
                 "title": "予想残高",
-                "value": f"¥{forecast_balance:,.0f}",
+                "value": format_currency(forecast_balance),
                 "delta": format_directional_delta(forecast_delta_pct),
                 "variant": "is-accent",
                 "caption": "粗利-固定費ベース",
@@ -8433,10 +8528,8 @@ elif page == "経営ダッシュボード":
             {
                 "title": "前期比(額)",
                 "value": format_directional_delta(cash_delta_pct) or "—",
-                "delta": (
-                    f"{cash_current - cash_prev:+,.0f}円"
-                    if cash_prev
-                    else None
+                "delta": format_currency_signed(
+                    (cash_current - cash_prev) if cash_prev is not None else None
                 ),
                 "variant": "is-success",
                 "caption": "前期比金額",
@@ -10243,6 +10336,46 @@ elif page == "保存ビュー":
                 st.session_state.compare_params = v.get("compare", {})
                 st.session_state.compare_results = None
                 st.success(f"ビュー「{k}」を適用しました。")
+
+# 11) ヘルプ/チュートリアル
+elif page == "ヘルプ/チュートリアル":
+    section_header(
+        "ヘルプ/チュートリアル",
+        "初回セットアップから各画面の活用ポイントまでをまとめました。",
+        icon="❓",
+    )
+
+    st.markdown(
+        """
+        ### 1. クイックスタート
+        1. **データ管理**ページでテンプレートを選択し、CSV/Excelをアップロードします。
+        2. 取り込みが完了したら、サンプルデータやAIサマリーで検証しましょう。
+        3. ダッシュボードでフィルタを変更すると、KGI・KPI・トレンドが一括で更新されます。
+        """
+    )
+
+    st.markdown(
+        """
+        ### 2. 画面構成のポイント
+        - **KGIカード**：年計売上・粗利率・キャッシュ残高を常に最上段で確認できます。
+        - **KPIタブ**：売上/粗利/在庫/資金の各タブで月次指標とアラートを整理しました。
+        - **ドリルダウン領域**：折れ線・棒グラフ・テーブルを左→右→下へ配置し、視線誘導を最適化しています。
+        - **フィルタ連動**：期間・店舗・単位を変更すると全ウィジェットが連動します。
+        """
+    )
+
+    with st.expander("FAQ / よくある質問", expanded=False):
+        st.markdown(
+            """
+            - **データをやり直したい場合は？** → データ管理ページで別ファイルを再アップロードしてください。
+            - **指標カードの単位を変えたい** → ダッシュボード右上の「単位」セレクトで即時切り替えが可能です。
+            - **トレンドグラフをエクスポートできますか？** → 各グラフ右上のメニューからPNG出力が利用できます。
+            """
+        )
+
+    st.info(
+        "オンボーディングツアーを再表示したい場合は、サイドバーのヘルプからいつでも起動できます。"
+    )
 
 current_tour_step = get_current_tour_step()
 apply_tour_highlight(current_tour_step)
