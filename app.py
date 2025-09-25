@@ -54,6 +54,9 @@ PRIMARY_RGB = get_color_rgb("primary")
 PRIMARY_DARK = darken(PRIMARY_COLOR, 0.25)
 PRIMARY_DEEP = darken(PRIMARY_COLOR, 0.4)
 PRIMARY_LIGHT = lighten(PRIMARY_COLOR, 0.25)
+SECONDARY_COLOR = get_color("secondary")
+SECONDARY_RGB = get_color_rgb("secondary")
+SECONDARY_SOFT = lighten(SECONDARY_COLOR, 0.35)
 ACCENT_COLOR = get_color("accent")
 ACCENT_RGB = get_color_rgb("accent")
 ACCENT_SOFT = get_color("accent", "soft")
@@ -3453,6 +3456,8 @@ def _render_sales_tab(
         )
     else:
         trend_display = monthly_trend.copy()
+        trend_display["month"] = pd.to_datetime(trend_display["month"])
+        trend_display = trend_display.sort_values("month")
         trend_display["売上"] = trend_display["sales_amount_jpy"] / unit_scale
         trend_display["前年売上"] = trend_display["売上"].shift(12)
         fig = go.Figure()
@@ -3463,6 +3468,7 @@ def _render_sales_tab(
                 name="売上",
                 mode="lines+markers",
                 line=dict(color=PRIMARY_COLOR, width=3),
+                hovertemplate=f"%{{x|%Y-%m}}<br>売上: %{{y:,.0f}} {unit}<extra></extra>",
             )
         )
         if trend_display["前年売上"].notna().any():
@@ -3473,10 +3479,11 @@ def _render_sales_tab(
                     name="前年同月",
                     mode="lines",
                     line=dict(color=ACCENT_COLOR, dash="dot", width=2),
+                    hovertemplate=f"%{{x|%Y-%m}}<br>前年同月: %{{y:,.0f}} {unit}<extra></extra>",
                 )
             )
         fig.update_yaxes(title=f"売上 ({unit})", tickformat=",.0f")
-        fig.update_xaxes(title="月")
+        fig.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
         fig.update_layout(
             height=420,
             margin=dict(l=10, r=10, t=40, b=10),
@@ -3522,19 +3529,54 @@ def _render_sales_tab(
                 product_comp["表示額"] = (
                     product_comp["sales_amount_jpy"] / unit_scale
                 )
-                top_products = product_comp.head(10)
-                fig_prod = px.bar(
-                    top_products.sort_values("表示額"),
-                    x="表示額",
-                    y="product_name",
-                    orientation="h",
-                    text=top_products["シェア"].map(lambda v: f"{v:.1f}%"),
+                product_comp["順位"] = np.arange(1, len(product_comp) + 1)
+                top_products = product_comp.head(10).copy()
+                top_products["share_label"] = top_products["シェア"].map(
+                    lambda v: f"{v:.1f}%"
                 )
+                display_df = top_products.iloc[::-1]
+                top3_names = set(top_products.head(3)["product_name"].tolist())
+                fig_prod = go.Figure()
+                fig_prod.add_trace(
+                    go.Bar(
+                        x=display_df["表示額"],
+                        y=display_df["product_name"],
+                        orientation="h",
+                        marker_color=PRIMARY_COLOR,
+                        text=display_df.apply(
+                            lambda row: f"#{int(row['順位'])}  {row['share_label']}",
+                            axis=1,
+                        ),
+                        textposition="outside",
+                        hovertemplate=(
+                            "%{y}<br>順位: #%{customdata[0]}<br>"
+                            f"売上: %{{x:,.0f}} {unit}<br>シェア: %{{customdata[1]}}<extra></extra>"
+                        ),
+                        customdata=np.column_stack(
+                            (
+                                display_df["順位"],
+                                display_df["share_label"],
+                            )
+                        ),
+                    )
+                )
+                tick_vals = display_df["product_name"].tolist()
+                tick_text = [
+                    f"<b>{name}</b>" if name in top3_names else name
+                    for name in tick_vals
+                ]
                 fig_prod.update_layout(
                     height=380,
                     margin=dict(l=10, r=10, t=30, b=10),
                     xaxis_title=f"売上 ({unit})",
                     yaxis_title="",
+                    xaxis=dict(tickformat=",.0f"),
+                )
+                fig_prod.update_yaxes(
+                    categoryorder="array",
+                    categoryarray=tick_vals,
+                    tickvals=tick_vals,
+                    ticktext=tick_text,
                 )
                 fig_prod = apply_elegant_theme(
                     fig_prod, theme=st.session_state.get("ui_theme", "light")
@@ -3822,33 +3864,84 @@ def _render_gross_profit_tab(
             guide="売上データを確認し、粗利計算に必要な期間を選択してください。",
         )
     else:
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
+        gross_trend = gross_trend.copy()
+        gross_trend["month"] = pd.to_datetime(gross_trend["month"])
+        gross_trend = gross_trend.sort_values("month")
+        gross_trend["前年粗利"] = gross_trend["gross_display"].shift(12)
+        gross_trend["前年粗利率"] = gross_trend["margin_pct"].shift(12)
+
+        fig_amount = go.Figure()
+        fig_amount.add_trace(
+            go.Scatter(
                 x=gross_trend["month"],
                 y=gross_trend["gross_display"],
                 name="粗利額",
+                mode="lines",
+                line=dict(color=SECONDARY_COLOR, width=3),
+                fill="tozeroy",
+                fillcolor=rgba(SECONDARY_SOFT, 0.35),
+                hovertemplate=f"%{{x|%Y-%m}}<br>粗利額: %{{y:,.0f}} {unit}<extra></extra>",
             )
         )
-        fig.add_trace(
+        if gross_trend["前年粗利"].notna().any():
+            fig_amount.add_trace(
+                go.Scatter(
+                    x=gross_trend["month"],
+                    y=gross_trend["前年粗利"],
+                    name="前年粗利",
+                    mode="lines",
+                    line=dict(color=SECONDARY_COLOR, dash="dot", width=2),
+                    hovertemplate=f"%{{x|%Y-%m}}<br>前年粗利: %{{y:,.0f}} {unit}<extra></extra>",
+                )
+            )
+        fig_amount.update_layout(
+            height=360,
+            margin=dict(l=10, r=10, t=40, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
+        )
+        fig_amount.update_yaxes(title=f"粗利額 ({unit})", tickformat=",.0f")
+        fig_amount.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
+        fig_amount = apply_elegant_theme(
+            fig_amount, theme=st.session_state.get("ui_theme", "light")
+        )
+        render_plotly_with_spinner(
+            fig_amount, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
+
+        fig_margin = go.Figure()
+        fig_margin.add_trace(
             go.Scatter(
                 x=gross_trend["month"],
                 y=gross_trend["margin_pct"],
                 name="粗利率",
                 mode="lines+markers",
-                yaxis="y2",
+                line=dict(color=SECONDARY_COLOR, width=2),
+                hovertemplate="%{x|%Y-%m}<br>粗利率: %{y:,.1f}%<extra></extra>",
             )
         )
-        fig.update_layout(
-            height=420,
-            margin=dict(l=10, r=10, t=40, b=10),
-            yaxis=dict(title=f"粗利額 ({unit})", tickformat=",.0f"),
-            yaxis2=dict(title="粗利率(%)", overlaying="y", side="right"),
-            barmode="relative",
+        if gross_trend["前年粗利率"].notna().any():
+            fig_margin.add_trace(
+                go.Scatter(
+                    x=gross_trend["month"],
+                    y=gross_trend["前年粗利率"],
+                    name="前年粗利率",
+                    mode="lines",
+                    line=dict(color=SECONDARY_SOFT, dash="dot", width=2),
+                    hovertemplate="%{x|%Y-%m}<br>前年粗利率: %{y:,.1f}%<extra></extra>",
+                )
+            )
+        fig_margin.update_layout(
+            height=320,
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
         )
-        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+        fig_margin.update_yaxes(title="粗利率(%)", tickformat=",.1f")
+        fig_margin.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
+        fig_margin = apply_elegant_theme(
+            fig_margin, theme=st.session_state.get("ui_theme", "light")
+        )
         render_plotly_with_spinner(
-            fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            fig_margin, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
         )
 
     snapshot = pd.DataFrame()
@@ -3889,18 +3982,54 @@ def _render_gross_profit_tab(
             else:
                 prod_gross["表示額"] = prod_gross["gross_amount"] / unit_scale
                 prod_gross["シェア"] = prod_gross["gross_amount"] / total_gross * 100.0
-                fig_prod = px.bar(
-                    prod_gross.head(10).sort_values("表示額"),
-                    x="表示額",
-                    y="product_name",
-                    orientation="h",
-                    text=prod_gross.head(10)["シェア"].map(lambda v: f"{v:.1f}%"),
+                prod_gross["順位"] = np.arange(1, len(prod_gross) + 1)
+                top_gross = prod_gross.head(10).copy()
+                top_gross["share_label"] = top_gross["シェア"].map(
+                    lambda v: f"{v:.1f}%"
                 )
+                display_df = top_gross.iloc[::-1]
+                top3_names = set(top_gross.head(3)["product_name"].tolist())
+                fig_prod = go.Figure()
+                fig_prod.add_trace(
+                    go.Bar(
+                        x=display_df["表示額"],
+                        y=display_df["product_name"],
+                        orientation="h",
+                        marker_color=SECONDARY_COLOR,
+                        text=display_df.apply(
+                            lambda row: f"#{int(row['順位'])}  {row['share_label']}",
+                            axis=1,
+                        ),
+                        textposition="outside",
+                        hovertemplate=(
+                            "%{y}<br>順位: #%{customdata[0]}<br>"
+                            f"粗利額: %{{x:,.0f}} {unit}<br>シェア: %{{customdata[1]}}<extra></extra>"
+                        ),
+                        customdata=np.column_stack(
+                            (
+                                display_df["順位"],
+                                display_df["share_label"],
+                            )
+                        ),
+                    )
+                )
+                tick_vals = display_df["product_name"].tolist()
+                tick_text = [
+                    f"<b>{name}</b>" if name in top3_names else name
+                    for name in tick_vals
+                ]
                 fig_prod.update_layout(
                     height=380,
                     margin=dict(l=10, r=10, t=30, b=10),
                     xaxis_title=f"粗利額 ({unit})",
                     yaxis_title="",
+                    xaxis=dict(tickformat=",.0f"),
+                )
+                fig_prod.update_yaxes(
+                    categoryorder="array",
+                    categoryarray=tick_vals,
+                    tickvals=tick_vals,
+                    ticktext=tick_text,
                 )
                 fig_prod = apply_elegant_theme(
                     fig_prod, theme=st.session_state.get("ui_theme", "light")
@@ -4144,30 +4273,85 @@ def _render_inventory_tab(
     )
 
     st.markdown("##### 在庫・回転率の推移")
-    inv_display = year_totals["inventory"] / unit_scale
-    turnover_series = year_totals["turnover"]
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(x=year_totals["month"], y=inv_display, name="推定在庫残高")
-    )
-    fig.add_trace(
+    inv_trend = year_totals.copy()
+    inv_trend["month"] = pd.to_datetime(inv_trend["month"])
+    inv_trend = inv_trend.sort_values("month")
+    inv_trend["inventory_display"] = inv_trend["inventory"] / unit_scale
+    inv_trend["inventory_prev"] = inv_trend["inventory_display"].shift(12)
+    inv_trend["turnover_prev"] = inv_trend["turnover"].shift(12)
+
+    fig_inventory = go.Figure()
+    fig_inventory.add_trace(
         go.Scatter(
-            x=year_totals["month"],
-            y=turnover_series,
-            name="在庫回転率",
-            mode="lines+markers",
-            yaxis="y2",
+            x=inv_trend["month"],
+            y=inv_trend["inventory_display"],
+            name="推定在庫残高",
+            mode="lines",
+            line=dict(color=ACCENT_COLOR, width=3),
+            fill="tozeroy",
+            fillcolor=rgba(ACCENT_SOFT, 0.35),
+            hovertemplate=f"%{{x|%Y-%m}}<br>在庫残高: %{{y:,.0f}} {unit}<extra></extra>",
         )
     )
-    fig.update_layout(
-        height=420,
+    if inv_trend["inventory_prev"].notna().any():
+        fig_inventory.add_trace(
+            go.Scatter(
+                x=inv_trend["month"],
+                y=inv_trend["inventory_prev"],
+                name="前年在庫",
+                mode="lines",
+                line=dict(color=ACCENT_COLOR, dash="dot", width=2),
+                hovertemplate=f"%{{x|%Y-%m}}<br>前年在庫: %{{y:,.0f}} {unit}<extra></extra>",
+            )
+        )
+    fig_inventory.update_layout(
+        height=360,
         margin=dict(l=10, r=10, t=40, b=10),
-        yaxis=dict(title=f"在庫残高 ({unit})", tickformat=",.0f"),
-        yaxis2=dict(title="回転率(回)", overlaying="y", side="right"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
     )
-    fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+    fig_inventory.update_yaxes(title=f"在庫残高 ({unit})", tickformat=",.0f")
+    fig_inventory.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
+    fig_inventory = apply_elegant_theme(
+        fig_inventory, theme=st.session_state.get("ui_theme", "light")
+    )
     render_plotly_with_spinner(
-        fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        fig_inventory, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+    )
+
+    fig_turnover = go.Figure()
+    fig_turnover.add_trace(
+        go.Scatter(
+            x=inv_trend["month"],
+            y=inv_trend["turnover"],
+            name="在庫回転率",
+            mode="lines+markers",
+            line=dict(color=ACCENT_EMPHASIS, width=2),
+            hovertemplate="%{x|%Y-%m}<br>在庫回転率: %{y:,.2f}回<extra></extra>",
+        )
+    )
+    if inv_trend["turnover_prev"].notna().any():
+        fig_turnover.add_trace(
+            go.Scatter(
+                x=inv_trend["month"],
+                y=inv_trend["turnover_prev"],
+                name="前年回転率",
+                mode="lines",
+                line=dict(color=ACCENT_SOFT, dash="dot", width=2),
+                hovertemplate="%{x|%Y-%m}<br>前年回転率: %{y:,.2f}回<extra></extra>",
+            )
+        )
+    fig_turnover.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
+    )
+    fig_turnover.update_yaxes(title="在庫回転率(回)", tickformat=",.2f")
+    fig_turnover.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
+    fig_turnover = apply_elegant_theme(
+        fig_turnover, theme=st.session_state.get("ui_theme", "light")
+    )
+    render_plotly_with_spinner(
+        fig_turnover, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
     )
 
     st.markdown("##### アラート")
@@ -4457,15 +4641,42 @@ def _render_funds_tab(
         )
     else:
         display_df = cash_df.copy()
+        display_df["month"] = pd.to_datetime(display_df["month"])
+        display_df = display_df.sort_values("month")
         display_df["表示額"] = display_df["amount"] / unit_scale
-        fig = px.bar(
-            display_df,
-            x="month",
-            y="表示額",
-            color="category",
-            barmode="relative",
-        )
+        present = display_df["category"].dropna().unique().tolist()
+        base_order = ["営業キャッシュフロー", "投資キャッシュフロー", "財務キャッシュフロー"]
+        category_order = [cat for cat in base_order if cat in present]
+        for cat in present:
+            if cat not in category_order:
+                category_order.append(cat)
+        color_map = {
+            "営業キャッシュフロー": SUCCESS_COLOR,
+            "投資キャッシュフロー": WARNING_COLOR,
+            "財務キャッシュフロー": ERROR_COLOR,
+        }
+        fig = go.Figure()
+        for category in category_order:
+            subset = display_df[display_df["category"] == category]
+            if subset.empty:
+                continue
+            fig.add_trace(
+                go.Scatter(
+                    x=subset["month"],
+                    y=subset["表示額"],
+                    name=category,
+                    mode="lines",
+                    stackgroup="cash",
+                    line=dict(width=1.5, color=color_map.get(category, PRIMARY_LIGHT)),
+                    hovertemplate=(
+                        "%{x|%Y-%m}<br>" + f"{category}: %{{y:,.0f}} {unit}<extra></extra>"
+                    ),
+                )
+            )
         if not net_series.empty:
+            net_series = net_series.copy()
+            net_series["month"] = pd.to_datetime(net_series["month"])
+            net_series = net_series.sort_values("month")
             net_series["表示額"] = net_series["amount"] / unit_scale
             fig.add_trace(
                 go.Scatter(
@@ -4473,13 +4684,17 @@ def _render_funds_tab(
                     y=net_series["表示額"],
                     name="純キャッシュフロー",
                     mode="lines+markers",
+                    line=dict(color=PRIMARY_DARK, width=2.5),
+                    hovertemplate=f"%{{x|%Y-%m}}<br>純CF: %{{y:,.0f}} {unit}<extra></extra>",
                 )
             )
         fig.update_layout(
             height=420,
             margin=dict(l=10, r=10, t=40, b=10),
             yaxis_title=f"金額 ({unit})",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
         )
+        fig.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
         fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
         render_plotly_with_spinner(
             fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
@@ -4500,18 +4715,34 @@ def _render_funds_tab(
     else:
         latest_flows = latest_flows.copy()
         latest_flows["表示額"] = latest_flows["amount"] / unit_scale
-        fig_latest = px.bar(
-            latest_flows,
-            x="category",
-            y="表示額",
-            text=latest_flows["表示額"].map(lambda v: f"{v:,.0f}"),
+        latest_flows = latest_flows.sort_values("表示額", ascending=True)
+        fig_latest = go.Figure()
+        fig_latest.add_trace(
+            go.Bar(
+                x=latest_flows["表示額"],
+                y=latest_flows["category"],
+                orientation="h",
+                marker_color=[
+                    SUCCESS_COLOR
+                    if "営業" in str(cat)
+                    else WARNING_COLOR
+                    if "投資" in str(cat)
+                    else ERROR_COLOR
+                    for cat in latest_flows["category"]
+                ],
+                text=latest_flows["表示額"].map(lambda v: f"{v:,.0f}"),
+                textposition="outside",
+                hovertemplate=f"%{{y}}<br>金額: %{{x:,.0f}} {unit}<extra></extra>",
+            )
         )
         fig_latest.update_layout(
             height=380,
             margin=dict(l=10, r=10, t=30, b=10),
-            xaxis_title="キャッシュフロー項目",
-            yaxis_title=f"金額 ({unit})",
+            xaxis_title=f"金額 ({unit})",
+            yaxis_title="",
+            xaxis=dict(tickformat=",.0f"),
         )
+        fig_latest.update_yaxes(categoryorder="array", categoryarray=latest_flows["category"])
         fig_latest = apply_elegant_theme(
             fig_latest, theme=st.session_state.get("ui_theme", "light")
         )
