@@ -3,7 +3,7 @@ primaryColor = "#0B1F3B"
 backgroundColor = "#F7F8FA"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#1A1A1A"
-font = "sans serif"
+font = "sans serif"  # Inter / Source Sans 3 loaded via CSS
 
 [layout]
 widescreen = true
