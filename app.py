@@ -535,20 +535,22 @@ def render_metric_cards(
                 )
             class_attr = " ".join(classes)
             col.markdown(
-                """
-                <div class="{classes}" role="group"{tooltip}{tab}{aria}>
-                  <div class="mck-metric-card__header">
-                    {icon}
-                    <div class="mck-metric-card__title-group">
-                      <div class="mck-metric-card__title">{title}</div>
-                      {subtitle}
+                textwrap.dedent(
+                    """
+                    <div class="{classes}" role="group"{tooltip}{tab}{aria}>
+                      <div class="mck-metric-card__header">
+                        {icon}
+                        <div class="mck-metric-card__title-group">
+                          <div class="mck-metric-card__title">{title}</div>
+                          {subtitle}
+                        </div>
+                        {info}
+                      </div>
+                      <div class="mck-metric-card__value">{value}</div>
+                      {footnote}
                     </div>
-                    {info}
-                  </div>
-                  <div class="mck-metric-card__value">{value}</div>
-                  {footnote}
-                </div>
-                """.format(
+                    """
+                ).format(
                     classes=class_attr,
                     tooltip=tooltip_attr,
                     tab=tab_attr,
