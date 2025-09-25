@@ -23,24 +23,21 @@ colors:
     value: "#1A1A1A"
     usage: "本文テキストの基本色。"
   muted:
-    value: "#5A6B7A"
+    value: "#4C5A68"
     usage: "キャプションや補足情報の色。"
   border:
     value: "#D5DAE3"
     strong: "#B8C1CC"
     usage: "カード・分割線・入力境界線。"
   success:
-    value: "#3A9D40"
-    soft: "#E1F1E2"
-    usage: "増加トレンド、成功メッセージ。ストリームリット標準より彩度を落として視認性と品位を両立。"
+    value: "#00A972"
+    usage: "増加トレンド、成功メッセージ。"
   warning:
     base: "#F4B400"
-    value: "#CC8A1E"
-    soft: "#FFF2DD"
+    value: "#DFA637"
     usage: "注意喚起。彩度を抑え視認性と落ち着きを両立。"
   error:
-    value: "#C8372C"
-    soft: "#F9E2DF"
+    value: "#D93025"
     usage: "エラー、在庫過剰など緊急性の高い通知。"
 
 typography:
@@ -56,8 +53,8 @@ typography:
       min: 14
       base: 15
       max: 16
-    line_height: 1.45
-    usage: "本文・表・一般UIラベル。ニールセンの原則に基づき認知負荷を抑える。"
+    line_height: 1.5
+    usage: "本文・表・一般UIラベル。"
   heading:
     font_family:
       - "Inter"
@@ -68,20 +65,10 @@ typography:
       min: 22
       max: 28
     weight: 600
-    line_height: 1.32
-    levels:
-      h1:
-        size_px: 28
-        weight: 700
-        letter_spacing: 0.01
-      h2:
-        size_px: 20
-        weight: 600
-        letter_spacing: 0.01
-    usage: "KPIカードタイトル、セクション見出し。階層を強調する。"
+    line_height: 1.35
+    usage: "KPIカードタイトル、セクション見出し。"
   numeric:
     font_family:
-      - "Inter Tight"
       - "Roboto Mono"
       - "Source Code Pro"
       - "Noto Sans Mono CJK JP"
@@ -94,16 +81,16 @@ layout:
     guidance: "st.columns([3,1])など比率指定で主従を明確化。"
   spacing:
     unit_px: 8
-    scale: [8, 16, 24, 32, 40, 48]
+    scale: [4, 8, 16, 24, 32, 40]
     usage: "余白は8pxグリッドに沿って設定。"
   card:
     radius_px:
       min: 8
       base: 10
       max: 12
-    shadow: "0 2px 4px rgba(0,0,0,0.06)"
+    shadow: "0 12px 24px rgba(11,31,59,0.08)"
     padding_px: 24
-    usage: "KPIカードやチャートのコンテナ。柔らかな角と浅い影で階層を表現。"
+    usage: "KPIカードやチャートのコンテナ。"
 
 components:
   kpi_card:
