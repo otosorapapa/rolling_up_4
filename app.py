@@ -7039,7 +7039,7 @@ def import_section(
                     html.escape(str(icon))
                 )
             )
-        st.markdown(
+        section_html = (
             textwrap.dedent(
                 """
                 <section class="mck-import-section{accent_class}" data-section="{number:02d}">
@@ -7053,15 +7053,17 @@ def import_section(
                   </header>
                   <div class="mck-import-section__body">
                 """
-            ).format(
+            )
+            .format(
                 accent_class=accent_class,
                 number=number,
                 icon=icon_block,
                 title_ja=html.escape(title_ja),
                 title_en=html.escape(title_en),
-            ),
-            unsafe_allow_html=True,
+            )
+            .strip()
         )
+        st.markdown(section_html, unsafe_allow_html=True)
         inner = st.container()
         with inner:
             yield
