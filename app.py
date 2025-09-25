@@ -6,7 +6,7 @@ import re
 import textwrap
 from string import Template
 from urllib.parse import urlencode
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Iterable, Callable
@@ -3566,6 +3566,19 @@ def _previous_month(months: List[str], current: Optional[str]) -> Optional[str]:
     if idx <= 0:
         return None
     return months[idx - 1]
+
+
+def _shift_month(month: Optional[str], offset: int) -> Optional[str]:
+    if not month:
+        return None
+    try:
+        base = pd.to_datetime(month, format="%Y-%m")
+    except (TypeError, ValueError):
+        return None
+    shifted = base + pd.DateOffset(months=offset)
+    if pd.isna(shifted):
+        return None
+    return shifted.strftime("%Y-%m")
 
 
 def _find_ratio(items: Iterable[Dict[str, object]], keywords: Iterable[str]) -> float:
@@ -9414,22 +9427,33 @@ elif page == "ダッシュボード":
         default_store = store_options[0]
         st.session_state.dashboard_store = default_store
 
-    control_cols = st.columns([5.0, 1.5, 1.4, 1.4, 1.4])
+    current_end = st.session_state.get("end_month_dash", latest_month)
+    if current_end not in months_available:
+        current_end = latest_month
 
-    with control_cols[1]:
-        current_end = st.session_state.get("end_month_dash", latest_month)
-        if current_end not in months_available:
-            current_end = latest_month
-        end_index = months_available.index(current_end)
-        end_m = st.selectbox(
-            "表示月",
-            months_available,
-            index=end_index,
-            key="end_month_dash",
+    month_dates = [
+        datetime.strptime(f"{m}-01", "%Y-%m-%d").date() for m in months_available
+    ]
+    min_month = month_dates[0]
+    max_month = month_dates[-1]
+
+    default_base = st.session_state.get("dashboard_base_month", current_end)
+    if default_base not in months_available:
+        default_base = current_end
+
+    default_base_date = datetime.strptime(f"{default_base}-01", "%Y-%m-%d").date()
+    period_index = period_options.index(default_period)
+    store_index = store_options.index(default_store)
+    unit_index = unit_options.index(default_unit)
+
+    with st.sidebar:
+        st.subheader("ダッシュボードフィルター")
+        store_value = st.selectbox(
+            "店舗",
+            store_options,
+            index=store_index,
+            key="dashboard_store",
         )
-
-    with control_cols[2]:
-        period_index = period_options.index(default_period)
         period_value = st.selectbox(
             "期間",
             period_options,
@@ -9437,91 +9461,434 @@ elif page == "ダッシュボード":
             key="sidebar_period",
             format_func=lambda v: f"{v}ヶ月",
         )
-
-    with control_cols[3]:
-        store_index = store_options.index(default_store)
-        store_value = st.selectbox(
-            "店舗",
-            store_options,
-            index=store_index,
-            key="dashboard_store",
+        base_month_date = st.date_input(
+            "基準月",
+            value=default_base_date,
+            min_value=min_month,
+            max_value=max_month,
+            key="dashboard_base_month_input",
         )
-
-    with control_cols[4]:
-        unit_index = unit_options.index(default_unit)
         unit_value = st.selectbox(
-            "単位",
+            "表示単位",
             unit_options,
             index=unit_index,
             key="sidebar_unit",
         )
+        st.caption("条件を変更するとダッシュボード全体が更新されます。")
 
-    active_end_month = end_m or latest_month
+    active_end_month = base_month_date.strftime("%Y-%m")
+    if active_end_month not in months_available:
+        fallback_months = [
+            m
+            for m in months_available
+            if datetime.strptime(f"{m}-01", "%Y-%m-%d").date()
+            <= base_month_date
+        ]
+        active_end_month = fallback_months[-1] if fallback_months else latest_month
+
+    st.session_state["end_month_dash"] = active_end_month
+    st.session_state["dashboard_base_month"] = active_end_month
+
     sidebar_state["dashboard_end_month"] = active_end_month
+    sidebar_state["dashboard_store"] = store_value
+    sidebar_state["dashboard_period"] = period_value
+    sidebar_state["dashboard_unit"] = unit_value
 
-    st.session_state.settings["window"] = period_value
-    st.session_state.settings["currency_unit"] = unit_value
-    st.session_state.filters.update(
-        {
-            "period": period_value,
-            "currency_unit": unit_value,
-            "store": store_value,
-            "end_month": active_end_month,
-        }
+    filters_signature = (
+        period_value,
+        store_value,
+        active_end_month,
+        unit_value,
     )
+    prev_signature = st.session_state.get("dashboard_last_filters")
+    show_spinner = prev_signature != filters_signature
 
-    filtered_monthly = _filter_monthly_data(
-        data_monthly,
-        end_month=active_end_month,
-        months=period_value,
-        store_column=store_column,
-        store_value=store_value,
-    )
-    monthly_trend = _prepare_monthly_trend(filtered_monthly)
-    channel_column = _detect_channel_column(filtered_monthly)
+    filtered_monthly: pd.DataFrame = pd.DataFrame()
+    monthly_trend: pd.DataFrame = pd.DataFrame()
+    channel_column: Optional[str] = None
+    kpi: Dict[str, object] = {}
+    financial_snapshot: Dict[str, object] = {}
+    prev_snapshot: Dict[str, object] = {}
+    snapshot_history = pd.DataFrame()
 
-    kpi = aggregate_overview(year_df, active_end_month)
-    financial_snapshot = _compute_financial_snapshot(
-        year_df, active_end_month, profile
+    spinner_ctx = (
+        st.spinner("ダッシュボードを更新中…") if show_spinner else nullcontext()
     )
-    prev_month = _previous_month(months_available, active_end_month)
-    prev_snapshot = _compute_financial_snapshot(year_df, prev_month, profile)
+    with spinner_ctx:
+        st.session_state.settings["window"] = period_value
+        st.session_state.settings["currency_unit"] = unit_value
+        st.session_state.filters.update(
+            {
+                "period": period_value,
+                "currency_unit": unit_value,
+                "store": store_value,
+                "end_month": active_end_month,
+            }
+        )
+
+        filtered_monthly = _filter_monthly_data(
+            data_monthly,
+            end_month=active_end_month,
+            months=period_value,
+            store_column=store_column,
+            store_value=store_value,
+        )
+        monthly_trend = _prepare_monthly_trend(filtered_monthly)
+        channel_column = _detect_channel_column(filtered_monthly)
+
+        kpi = aggregate_overview(year_df, active_end_month)
+        financial_snapshot = _compute_financial_snapshot(
+            year_df, active_end_month, profile
+        )
+        prev_month = _previous_month(months_available, active_end_month)
+        prev_snapshot = _compute_financial_snapshot(year_df, prev_month, profile)
+
+        active_end_dt = pd.to_datetime(active_end_month, format="%Y-%m")
+        history_records: List[Dict[str, object]] = []
+        for month in months_available:
+            month_dt = pd.to_datetime(month, format="%Y-%m")
+            if month_dt > active_end_dt:
+                break
+            snap = _compute_financial_snapshot(year_df, month, profile)
+            record = {
+                "month": month,
+                "month_dt": month_dt,
+                **snap,
+            }
+            inventory_balance = float(record.get("inventory_balance", 0.0) or 0.0)
+            cogs_amount = float(record.get("cogs", 0.0) or 0.0)
+            if inventory_balance > 0:
+                record["inventory_turnover"] = cogs_amount / inventory_balance
+            else:
+                record["inventory_turnover"] = np.nan
+            history_records.append(record)
+
+        if history_records:
+            snapshot_history = pd.DataFrame(history_records)
+
+    st.session_state["dashboard_last_filters"] = filters_signature
+    if show_spinner:
+        st.session_state["dashboard_last_updated"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     st.markdown(
         f"**表示条件**：{store_value} ｜ 過去 {period_value} ヶ月 ｜ 単位 {unit_value}"
     )
+    last_updated = st.session_state.get("dashboard_last_updated")
+    if last_updated:
+        st.caption(f"最終更新: {last_updated}")
 
-    kpi_cols = st.columns(3)
+    unit_scale = UNIT_MAP.get(unit_value, 1)
+
+    def _render_sparkline(
+        column,
+        data: pd.DataFrame,
+        value_col: str,
+        *,
+        color: str,
+        name: str,
+    ) -> None:
+        if data.empty or value_col not in data.columns:
+            return
+        recent = data.dropna(subset=[value_col]).tail(12)
+        if recent.empty:
+            return
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=recent["month_dt"],
+                y=recent[value_col],
+                mode="lines",
+                line=dict(color=color, width=2.4),
+                name=name,
+                hovertemplate="月=%{x|%Y-%m}<br>値=%{y:,.2f}<extra></extra>",
+                showlegend=False,
+            )
+        )
+        latest_row = recent.iloc[-1]
+        fig.add_trace(
+            go.Scatter(
+                x=[latest_row["month_dt"]],
+                y=[latest_row[value_col]],
+                mode="markers",
+                marker=dict(color=color, size=8, line=dict(color="#ffffff", width=1.5)),
+                name="最新",
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+        fig.update_layout(
+            height=120,
+            margin=dict(l=0, r=0, t=20, b=0),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+        )
+        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
+        column.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
+
+    def _format_delta_pct(value: Optional[float], *, suffix: str = "%") -> Optional[str]:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return None
+        return f"YoY {value * 100:+.1f}{suffix}"
+
+    def _metric_delta(prev_val: Optional[float], curr_val: Optional[float]) -> Optional[str]:
+        if prev_val is None or curr_val is None:
+            return None
+        if isinstance(prev_val, float) and math.isnan(prev_val):
+            return None
+        if isinstance(curr_val, float) and math.isnan(curr_val):
+            return None
+        diff = curr_val - prev_val
+        if abs(diff) < 1e-9:
+            return "±0"
+        sign = "+" if diff > 0 else "−"
+        return f"{sign}{abs(diff):,.2f}"
+
+    def _metric_delta_currency(
+        prev_val: Optional[float], curr_val: Optional[float]
+    ) -> Optional[str]:
+        if prev_val is None or curr_val is None:
+            return None
+        if isinstance(prev_val, float) and math.isnan(prev_val):
+            return None
+        if isinstance(curr_val, float) and math.isnan(curr_val):
+            return None
+        diff = curr_val - prev_val
+        return format_amount(diff, unit_value)
+
+    if not monthly_trend.empty:
+        monthly_trend = monthly_trend.sort_values("month_dt")
+        monthly_trend["display_amount"] = (
+            monthly_trend["sales_amount_jpy"] / unit_scale
+        )
+
+    if not snapshot_history.empty:
+        snapshot_history = snapshot_history.sort_values("month_dt")
+        snapshot_history["gross_display"] = (
+            snapshot_history["gross_profit"].astype(float) / unit_scale
+        )
+        snapshot_history["cash_display"] = (
+            snapshot_history["cash_balance"].astype(float) / unit_scale
+        )
+        snapshot_history["cashflow_display"] = (
+            snapshot_history["net_cash_flow"].astype(float) / unit_scale
+        )
+
+    def _lookup_history(month: Optional[str], column: str) -> Optional[float]:
+        if not month or snapshot_history.empty or column not in snapshot_history:
+            return None
+        row = snapshot_history[snapshot_history["month"] == month]
+        if row.empty:
+            return None
+        value = row.iloc[0][column]
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        return float(value)
+
+    sales_yoy = kpi.get("yoy")
+    sales_delta = kpi.get("delta")
     total_sales = kpi.get("total_year_sum")
-    delta_sales = kpi.get("delta")
-    kpi_cols[0].metric(
-        "売上総額 (年計)",
-        format_amount(total_sales, unit_value),
-        delta=format_amount(delta_sales, unit_value) if delta_sales is not None else None,
-    )
 
-    gross_margin = financial_snapshot.get("gross_margin_rate")
-    prev_margin = prev_snapshot.get("gross_margin_rate")
-    margin_label = (
-        f"{gross_margin * 100:.1f}%" if gross_margin is not None else "—"
-    )
-    margin_delta = None
-    if gross_margin is not None and prev_margin is not None:
-        margin_delta = f"{(gross_margin - prev_margin) * 100:.1f}pt"
-    kpi_cols[1].metric("粗利率", margin_label, delta=margin_delta)
+    prev_month_key = _previous_month(months_available, active_end_month)
+    prev_gross = prev_snapshot.get("gross_profit") if prev_snapshot else None
+    prev_turnover = None
+    prev_cashflow = None
+    prev_cash = None
+    if prev_month_key:
+        prev_turnover = _lookup_history(prev_month_key, "inventory_turnover")
+        prev_cashflow = _lookup_history(prev_month_key, "net_cash_flow")
+        prev_cash = _lookup_history(prev_month_key, "cash_balance")
 
-    cash_balance = financial_snapshot.get("cash_balance")
-    prev_cash = prev_snapshot.get("cash_balance")
-    cash_delta = None
-    if cash_balance is not None and prev_cash is not None:
-        cash_delta = cash_balance - prev_cash
-    kpi_cols[2].metric(
+    yoy_month_key = _shift_month(active_end_month, -12)
+    gross_yoy = None
+    inventory_yoy = None
+    cash_yoy = None
+    cashflow_yoy = None
+    if yoy_month_key:
+        gross_prev = _lookup_history(yoy_month_key, "gross_profit")
+        gross_curr = _lookup_history(active_end_month, "gross_profit")
+        if gross_prev and gross_prev != 0:
+            gross_yoy = (gross_curr - gross_prev) / gross_prev if gross_curr is not None else None
+        inv_prev = _lookup_history(yoy_month_key, "inventory_turnover")
+        inv_curr = _lookup_history(active_end_month, "inventory_turnover")
+        if inv_prev and inv_prev != 0:
+            inventory_yoy = (
+                (inv_curr - inv_prev) / inv_prev if inv_curr is not None else None
+            )
+        cash_prev = _lookup_history(yoy_month_key, "cash_balance")
+        cash_curr = _lookup_history(active_end_month, "cash_balance")
+        if cash_prev and cash_prev != 0:
+            cash_yoy = (
+                (cash_curr - cash_prev) / cash_prev if cash_curr is not None else None
+            )
+        flow_prev = _lookup_history(yoy_month_key, "net_cash_flow")
+        flow_curr = _lookup_history(active_end_month, "net_cash_flow")
+        if flow_prev and flow_prev != 0:
+            cashflow_yoy = (
+                (flow_curr - flow_prev) / flow_prev
+                if flow_curr is not None
+                else None
+            )
+
+    st.markdown("### ビジネスKPI")
+    biz_cols = st.columns(2)
+    with biz_cols[0]:
+        biz_cols[0].metric(
+            "売上総額 (年計)",
+            format_amount(total_sales, unit_value),
+            delta=_format_delta_pct(sales_yoy) if sales_yoy is not None else None,
+        )
+        if sales_delta is not None:
+            biz_cols[0].caption(
+                f"前月差 {format_amount(sales_delta, unit_value)}"
+            )
+        if not monthly_trend.empty:
+            _render_sparkline(
+                biz_cols[0],
+                monthly_trend,
+                "display_amount",
+                color=PRIMARY_COLOR,
+                name="売上推移",
+            )
+        biz_cols[0].button(
+            "店舗別売上をドリルダウン",
+            key="drill_sales_button",
+            on_click=set_active_page,
+            kwargs={"page_key": "ranking", "rerun_on_lock": True},
+            use_container_width=True,
+        )
+
+    gross_profit_value = financial_snapshot.get("gross_profit")
+    gross_delta = _metric_delta_currency(prev_gross, gross_profit_value)
+    with biz_cols[1]:
+        biz_cols[1].metric(
+            "粗利 (年計)",
+            format_amount(gross_profit_value, unit_value),
+            delta=_format_delta_pct(gross_yoy) or gross_delta,
+        )
+        if gross_delta:
+            biz_cols[1].caption(f"前月差 {gross_delta}")
+        if not snapshot_history.empty:
+            _render_sparkline(
+                biz_cols[1],
+                snapshot_history,
+                "gross_display",
+                color=ACCENT_COLOR,
+                name="粗利推移",
+            )
+        biz_cols[1].button(
+            "SKU詳細で粗利を確認",
+            key="drill_gross_button",
+            on_click=set_active_page,
+            kwargs={"page_key": "detail", "rerun_on_lock": True},
+            use_container_width=True,
+        )
+
+    st.markdown("### 運営KPI")
+    ops_cols = st.columns(2)
+    inventory_current = _lookup_history(active_end_month, "inventory_turnover")
+    turnover_delta = _metric_delta(prev_turnover, inventory_current)
+    with ops_cols[0]:
+        ops_cols[0].metric(
+            "在庫回転率",
+            f"{inventory_current:.2f} 回" if inventory_current is not None else "—",
+            delta=_format_delta_pct(inventory_yoy) or turnover_delta,
+        )
+        if turnover_delta:
+            ops_cols[0].caption(f"前月差 {turnover_delta} 回")
+        if not snapshot_history.empty:
+            _render_sparkline(
+                ops_cols[0],
+                snapshot_history,
+                "inventory_turnover",
+                color=SECONDARY_COLOR,
+                name="在庫回転率",
+            )
+        ops_cols[0].button(
+            "比較ビューで在庫を分析",
+            key="drill_inventory_button",
+            on_click=set_active_page,
+            kwargs={"page_key": "compare", "rerun_on_lock": True},
+            use_container_width=True,
+        )
+
+    cashflow_current = _lookup_history(active_end_month, "net_cash_flow")
+    cashflow_delta = _metric_delta_currency(prev_cashflow, cashflow_current)
+    with ops_cols[1]:
+        ops_cols[1].metric(
+            "資金繰り (月次キャッシュフロー)",
+            format_amount(cashflow_current, unit_value),
+            delta=_format_delta_pct(cashflow_yoy) or cashflow_delta,
+        )
+        if cashflow_delta:
+            ops_cols[1].caption(f"前月差 {cashflow_delta}")
+        if not snapshot_history.empty:
+            _render_sparkline(
+                ops_cols[1],
+                snapshot_history,
+                "cashflow_display",
+                color=SUCCESS_COLOR,
+                name="キャッシュフロー",
+            )
+        ops_cols[1].button(
+            "資金アラートを確認",
+            key="drill_cashflow_button",
+            on_click=set_active_page,
+            kwargs={"page_key": "alert", "rerun_on_lock": True},
+            use_container_width=True,
+        )
+
+    st.markdown("### 安全性KPI")
+    safety_col = st.columns(1)[0]
+    cash_current = financial_snapshot.get("cash_balance")
+    cash_delta = _metric_delta_currency(prev_cash, cash_current)
+    safety_col.metric(
         "キャッシュ残高",
-        format_amount(cash_balance, unit_value),
-        delta=(
-            format_amount(cash_delta, unit_value) if cash_delta is not None else None
-        ),
+        format_amount(cash_current, unit_value),
+        delta=_format_delta_pct(cash_yoy) or cash_delta,
     )
+    if cash_delta:
+        safety_col.caption(f"前月差 {cash_delta}")
+    if not snapshot_history.empty:
+        _render_sparkline(
+            safety_col,
+            snapshot_history,
+            "cash_display",
+            color=PRIMARY_DARK,
+            name="キャッシュ残高",
+        )
+    safety_col.button(
+        "キャッシュドリルダウン",
+        key="drill_cash_button",
+        on_click=set_active_page,
+        kwargs={"page_key": "executive", "rerun_on_lock": True},
+        use_container_width=True,
+    )
+
+    st.markdown("---")
+    st.caption("タブを切り替えると該当指標のグラフとテーブルが更新されます。")
+    st.markdown(
+        """
+        <style>
+        .dashboard-tabbed .stTabs [role="tab"] {
+            padding: 0.6rem 1.4rem;
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+        .dashboard-tabbed .stTabs [aria-selected="true"] {
+            background: rgba(59, 98, 180, 0.1);
+            border-bottom: 3px solid {PRIMARY_COLOR};
+        }
+        </style>
+        """.replace("{PRIMARY_COLOR}", PRIMARY_COLOR),
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="dashboard-tabbed">', unsafe_allow_html=True)
 
     tabs = st.tabs(["売上", "粗利", "在庫", "資金"])
     with tabs[0]:
@@ -9561,6 +9928,8 @@ elif page == "ダッシュボード":
             end_month=active_end_month,
             profile=profile,
         )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "ランキング":
     require_data()
