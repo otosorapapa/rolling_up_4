@@ -932,6 +932,7 @@ from services import (
     slopes_snapshot,
     shape_flags,
     detect_linear_anomalies,
+    normalize_month_key,
 )
 from sample_data import (
     SampleCSVMeta,
@@ -2296,6 +2297,12 @@ if "sample_data_notice" not in st.session_state:
     st.session_state.sample_data_notice = False
 if "sample_data_message" not in st.session_state:
     st.session_state.sample_data_message = ""
+if "import_wizard_step" not in st.session_state:
+    st.session_state.import_wizard_step = 1
+if "import_upload_preview" not in st.session_state:
+    st.session_state.import_upload_preview = None
+if "import_upload_diagnostics" not in st.session_state:
+    st.session_state.import_upload_diagnostics = None
 
 # track user interactions and global filters
 if "click_log" not in st.session_state:
@@ -2339,10 +2346,14 @@ def apply_industry_template(template_key: str) -> None:
     ]
 
 
-def build_industry_template_csv(template_key: str, months: int = 12) -> bytes:
+def build_industry_template_dataframe(
+    template_key: str, months: int = 12
+) -> pd.DataFrame:
+    """Return a DataFrame that represents the industry template."""
+
     template = INDUSTRY_TEMPLATES.get(template_key)
     if not template:
-        return b""
+        return pd.DataFrame()
     base_columns = template.get("template_columns", ["品目名"])
     sample_rows = template.get("template_sample_rows") or [{}]
     end_period = pd.Timestamp.today().to_period("M")
@@ -2355,8 +2366,324 @@ def build_industry_template_csv(template_key: str, months: int = 12) -> bytes:
         rows.append(base_values + month_values)
     if not rows:
         rows.append(["" for _ in base_columns + month_columns])
-    df = pd.DataFrame(rows, columns=base_columns + month_columns)
+    return pd.DataFrame(rows, columns=base_columns + month_columns)
+
+
+def build_industry_template_csv(template_key: str, months: int = 12) -> bytes:
+    df = build_industry_template_dataframe(template_key, months=months)
+    if df.empty:
+        return b""
     return df.to_csv(index=False).encode("utf-8-sig")
+
+
+def _convert_numeric_cell(value: object) -> Tuple[float, bool, bool]:
+    """Return (numeric_value, is_invalid, is_present)."""
+
+    if value is None:
+        return (math.nan, False, False)
+    if isinstance(value, (int, float, np.number)) and not isinstance(value, bool):
+        if isinstance(value, float) and math.isnan(value):
+            return (math.nan, False, False)
+        return (float(value), False, True)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return (math.nan, False, False)
+        normalized = re.sub(r"[\s,¥$]", "", text)
+        normalized = normalized.replace("円", "")
+        try:
+            return (float(normalized), False, True)
+        except ValueError:
+            return (math.nan, True, True)
+    try:
+        numeric = float(value)
+        if math.isnan(numeric):
+            return (math.nan, False, False)
+        return (numeric, False, True)
+    except Exception:
+        return (math.nan, True, True)
+
+
+def _coerce_numeric_table(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Convert DataFrame values to numeric and track invalid/missing cells."""
+
+    if df.empty:
+        empty = pd.DataFrame(index=df.index, columns=df.columns)
+        mask = pd.DataFrame(False, index=df.index, columns=df.columns)
+        return empty, mask, mask
+
+    numeric: Dict[str, List[float]] = {}
+    invalid_mask: Dict[str, List[bool]] = {}
+    present_mask: Dict[str, List[bool]] = {}
+
+    for col in df.columns:
+        numeric_col: List[float] = []
+        invalid_col: List[bool] = []
+        present_col: List[bool] = []
+        for val in df[col].tolist():
+            numeric_val, is_invalid, is_present = _convert_numeric_cell(val)
+            numeric_col.append(numeric_val)
+            invalid_col.append(is_invalid)
+            present_col.append(is_present)
+        numeric[col] = numeric_col
+        invalid_mask[col] = invalid_col
+        present_mask[col] = present_col
+
+    numeric_df = pd.DataFrame(numeric, index=df.index)
+    invalid_df = pd.DataFrame(invalid_mask, index=df.index)
+    present_df = pd.DataFrame(present_mask, index=df.index)
+    return numeric_df, invalid_df, present_df
+
+
+def profile_wide_dataframe(
+    df: pd.DataFrame, template_config: Dict[str, object]
+) -> Dict[str, object]:
+    """Inspect uploaded wide-form data and surface quality signals."""
+
+    diagnostics: Dict[str, object] = {
+        "issues": [],
+        "has_fatal": False,
+        "month_columns": [],
+        "missing_expected_columns": [],
+        "duplicate_rows": 0,
+        "missing_cells": 0,
+        "invalid_cells": 0,
+        "total_month_cells": 0,
+        "normalized_months": {},
+        "month_parse_errors": [],
+        "coverage": None,
+    }
+
+    if df is None or getattr(df, "empty", True):
+        diagnostics["issues"].append(
+            {
+                "level": "error",
+                "title": "データが読み込めませんでした",
+                "detail": "ファイルに行が含まれていません。テンプレートに数値を入力して再度アップロードしてください。",
+            }
+        )
+        diagnostics["has_fatal"] = True
+        return diagnostics
+
+    expected_columns = template_config.get("template_columns", []) or []
+    diagnostics["expected_columns"] = expected_columns
+
+    month_columns: List[str] = []
+    normalized_months: Dict[str, str] = {}
+    ambiguous_headers: List[str] = []
+    for col in df.columns:
+        try:
+            normalized_months[col] = normalize_month_key(col)
+            month_columns.append(col)
+        except Exception:
+            header_text = str(col)
+            if re.search(r"20\d{2}", header_text):
+                ambiguous_headers.append(header_text)
+
+    diagnostics["month_columns"] = month_columns
+    diagnostics["normalized_months"] = normalized_months
+    diagnostics["month_parse_errors"] = ambiguous_headers
+
+    if not month_columns:
+        diagnostics["issues"].append(
+            {
+                "level": "error",
+                "title": "月度列が検出できません",
+                "detail": "`2023-01` のような YYYY-MM 形式の列名が必要です。テンプレートの月度列を活用してください。",
+            }
+        )
+        diagnostics["has_fatal"] = True
+        return diagnostics
+
+    if ambiguous_headers:
+        diagnostics["issues"].append(
+            {
+                "level": "warning",
+                "title": "月度として解釈できない列があります",
+                "detail": "列名: " + ", ".join(ambiguous_headers[:6]),
+            }
+        )
+
+    month_values = df[month_columns]
+    numeric_df, invalid_df, present_df = _coerce_numeric_table(month_values)
+    missing_df = ~present_df
+    missing_cells = int(missing_df.values.sum())
+    invalid_cells = int(invalid_df.values.sum())
+    non_empty_cells = int(present_df.values.sum())
+    total_month_cells = month_values.shape[0] * month_values.shape[1]
+    diagnostics["missing_cells"] = missing_cells
+    diagnostics["invalid_cells"] = invalid_cells
+    diagnostics["total_month_cells"] = total_month_cells
+    diagnostics["missing_mask"] = missing_df
+    diagnostics["invalid_mask"] = invalid_df
+
+    if non_empty_cells > 0 and invalid_cells == non_empty_cells:
+        diagnostics["issues"].append(
+            {
+                "level": "error",
+                "title": "数値として解釈できる月次データがありません",
+                "detail": "セルが文字列のままになっている可能性があります。半角数字で入力してください。",
+            }
+        )
+        diagnostics["has_fatal"] = True
+
+    if invalid_cells and invalid_cells < non_empty_cells:
+        diagnostics["issues"].append(
+            {
+                "level": "warning",
+                "title": "数値として読み取れないセルがあります",
+                "detail": "全角数字や単位付きのセルを修正してください。該当セル数: {:,}".format(
+                    invalid_cells
+                ),
+            }
+        )
+
+    if missing_cells:
+        diagnostics["issues"].append(
+            {
+                "level": "info",
+                "title": "欠損セルが見つかりました",
+                "detail": "空欄のままにするか 0 で補完するかを欠測ポリシーで選択できます。欠損セル数: {:,}".format(
+                    missing_cells
+                ),
+            }
+        )
+
+    first_month = None
+    last_month = None
+    if normalized_months:
+        try:
+            month_values_sorted = sorted(set(normalized_months.values()))
+            first_month = month_values_sorted[0]
+            last_month = month_values_sorted[-1]
+            diagnostics["coverage"] = (first_month, last_month)
+        except Exception:
+            diagnostics["coverage"] = None
+
+    id_columns: List[str] = []
+    if expected_columns:
+        id_columns = [col for col in expected_columns if col in df.columns]
+        missing_expected = [col for col in expected_columns if col not in df.columns]
+        diagnostics["missing_expected_columns"] = missing_expected
+        if missing_expected:
+            diagnostics["issues"].append(
+                {
+                    "level": "warning",
+                    "title": "テンプレート推奨列が不足しています",
+                    "detail": "不足している列: " + ", ".join(missing_expected[:6]),
+                }
+            )
+    if not id_columns:
+        id_columns = [c for c in df.columns if c not in month_columns][:2]
+        if not id_columns and df.columns.tolist():
+            id_columns = [df.columns[0]]
+
+    if id_columns:
+        duplicate_rows = int(df.duplicated(subset=id_columns, keep=False).sum())
+        diagnostics["duplicate_rows"] = duplicate_rows
+        if duplicate_rows:
+            diagnostics["issues"].append(
+                {
+                    "level": "warning",
+                    "title": "キー列が重複しています",
+                    "detail": "{} 列で重複を検出しました。".format(", ".join(id_columns)),
+                }
+            )
+
+    diagnostics["row_count"] = int(len(df))
+    diagnostics["column_count"] = int(len(df.columns))
+
+    return diagnostics
+
+
+def render_quality_issue_list(issues: List[Dict[str, str]]) -> None:
+    """Display quality issues with icons."""
+
+    if not issues:
+        st.success(
+            "チェックを完了しました。主要なエラーは検出されていません。"
+        )
+        return
+
+    level_icons = {"error": "❌", "warning": "⚠️", "info": "ℹ️"}
+    for issue in issues:
+        level = issue.get("level", "info")
+        icon = level_icons.get(level, "•")
+        title = html.escape(issue.get("title", ""))
+        detail = html.escape(issue.get("detail", ""))
+        st.markdown(
+            f"{icon} **{title}**<br><span class='mck-import-section__hint'>{detail}</span>",
+            unsafe_allow_html=True,
+        )
+
+
+def render_upload_quality_metrics(diagnostics: Dict[str, object]) -> None:
+    """Render headline metrics for the uploaded dataset preview."""
+
+    month_count = len(diagnostics.get("month_columns", []) or [])
+    missing_cells = int(diagnostics.get("missing_cells", 0) or 0)
+    invalid_cells = int(diagnostics.get("invalid_cells", 0) or 0)
+    duplicate_rows = int(diagnostics.get("duplicate_rows", 0) or 0)
+    coverage = diagnostics.get("coverage")
+
+    col_a, col_b, col_c, col_d = st.columns(4)
+    col_a.metric("検出した月度列", f"{month_count:,}")
+    col_b.metric("欠損セル", f"{missing_cells:,}")
+    col_c.metric("数値エラー", f"{invalid_cells:,}")
+    col_d.metric("重複行", f"{duplicate_rows:,}")
+
+    if coverage:
+        start, end = coverage
+        st.caption(
+            f"期間カバレッジ: {html.escape(str(start))} 〜 {html.escape(str(end))}"
+        )
+
+
+def style_upload_preview(
+    df: pd.DataFrame, diagnostics: Dict[str, object], max_rows: int = 50
+) -> "Styler":
+    """Return a styled preview with missing/invalid cells highlighted."""
+
+    preview = df.head(max_rows).copy()
+    missing_mask = diagnostics.get("missing_mask")
+    invalid_mask = diagnostics.get("invalid_mask")
+    month_columns = diagnostics.get("month_columns", []) or []
+
+    missing_highlight = None
+    invalid_highlight = None
+    if isinstance(missing_mask, pd.DataFrame):
+        missing_highlight = missing_mask.reindex(
+            index=preview.index, columns=preview.columns, fill_value=False
+        )
+    if isinstance(invalid_mask, pd.DataFrame):
+        invalid_highlight = invalid_mask.reindex(
+            index=preview.index, columns=preview.columns, fill_value=False
+        )
+
+    def _style_cell(row_idx, col_name):
+        if missing_highlight is not None and missing_highlight.at[row_idx, col_name]:
+            return "background-color: rgba(255, 215, 0, 0.35);"
+        if invalid_highlight is not None and invalid_highlight.at[row_idx, col_name]:
+            return "background-color: rgba(255, 107, 107, 0.35);"
+        if col_name in month_columns:
+            return "background-color: rgba(15, 98, 254, 0.04);"
+        return ""
+
+    styler = preview.style
+    styler = styler.apply(
+        lambda data: pd.DataFrame(
+            [[_style_cell(idx, col) for col in data.columns] for idx in data.index],
+            index=data.index,
+            columns=data.columns,
+        ),
+        axis=None,
+    )
+    styler = styler.set_properties(
+        subset=month_columns, **{"font-variant-numeric": "tabular-nums"}
+    )
+    return styler
 
 
 def _normalize_statement_items(items: List[Dict[str, float]]) -> List[Dict[str, float]]:
@@ -6837,6 +7164,34 @@ def render_import_stepper() -> None:
         )
 
 
+def render_import_progress_bar() -> None:
+    """Render a compact progress bar above the wizard."""
+
+    steps, _ = build_import_progress_steps()
+    if not steps:
+        return
+
+    statuses = [step.get("status", "upcoming") for step in steps]
+    total = len(statuses)
+    completed = sum(1 for status in statuses if status == "complete")
+    current_index = next(
+        (idx for idx, status in enumerate(statuses) if status == "current"),
+        None,
+    )
+    progress_units = float(completed)
+    if current_index is not None and statuses[current_index] == "current":
+        progress_units += 0.5
+    ratio = progress_units / total if total else 0.0
+    ratio = max(0.0, min(1.0, ratio))
+
+    st.progress(ratio)
+    if current_index is not None:
+        current_step = steps[current_index]
+        st.caption(
+            f"現在のステップ: {current_step.get('label', '')} / "
+            f"{current_step.get('label_en', '')}"
+        )
+
 FLOW_STEP_SEQUENCE: List[Dict[str, str]] = [
     {
         "key": "template",
@@ -7569,6 +7924,7 @@ if page == "データ取込":
         icon="📥",
     )
 
+    render_import_progress_bar()
     render_import_stepper()
 
     template_options = [
@@ -7691,6 +8047,19 @@ No auto-calculated metrics are linked to this template."""
                 )
         if metrics_list:
             render_metric_bar_chart(metrics_list)
+        template_preview_df = build_industry_template_dataframe(active_template, months=6)
+        if not template_preview_df.empty:
+            with st.expander(
+                "テンプレートの列構成をプレビュー / Preview template layout",
+                expanded=False,
+            ):
+                st.dataframe(
+                    template_preview_df.head(5),
+                    use_container_width=True,
+                )
+                st.caption(
+                    "推奨列と 6 ヶ月分の月度列をプレビュー表示しています。サンプル値を参考に列名を合わせてください。"
+                )
         template_bytes = build_industry_template_csv(active_template)
         render_icon_label(
             "download",
@@ -7759,6 +8128,14 @@ No auto-calculated metrics are linked to this template."""
                 help="月次の売上・仕入れ・経費などを含むCSV/Excelファイルを指定します。/ Select the monthly dataset to import.",
                 label_visibility="collapsed",
             )
+            st.download_button(
+                "サンプルCSVをダウンロード",
+                data=build_industry_template_csv(active_template),
+                file_name=f"{active_template}_sample.csv",
+                mime="text/csv",
+                help="テンプレートに沿ったサンプルCSVを取得し、列名や形式を確認できます。",
+                key="upload_sample_download",
+            )
         with col_u2:
             render_icon_label(
                 "policy",
@@ -7803,11 +8180,29 @@ No auto-calculated metrics are linked to this template."""
                 )
                 st.stop()
 
+            diagnostics = profile_wide_dataframe(df_raw, template_config)
+            st.session_state.import_upload_preview = df_raw
+            st.session_state.import_upload_diagnostics = diagnostics
+            st.session_state.import_wizard_step = max(
+                st.session_state.get("import_wizard_step", 1), 2
+            )
+
             with st.expander(
                 "アップロードプレビュー（先頭100行） / Preview first 100 rows",
                 expanded=True,
             ):
-                st.dataframe(df_raw.head(100), use_container_width=True)
+                styled_preview = style_upload_preview(df_raw, diagnostics)
+                st.dataframe(styled_preview, use_container_width=True)
+                st.caption(
+                    "黄色は欠損セル、赤は数値に変換できなかったセル、青は検出した月度列を示しています。"
+                )
+
+            render_upload_quality_metrics(diagnostics)
+            render_quality_issue_list(diagnostics.get("issues", []))
+            if diagnostics.get("has_fatal"):
+                st.error(
+                    "致命的なエラーを修正してから変換を実行してください。テンプレートのサンプル列を参考に調整できます。"
+                )
 
             cols = df_raw.columns.tolist()
             product_name_col = st.selectbox(
@@ -7839,31 +8234,39 @@ No auto-calculated metrics are linked to this template."""
             st.markdown("</div>", unsafe_allow_html=True)
 
             if convert_clicked:
-                try:
-                    with loading_message("年計データを計算中…"):
-                        long_df, year_df = ingest_wide_dataframe(
-                            df_raw,
-                            product_name_col=product_name_col,
-                            product_code_col=code_col,
-                        )
-
-                    st.success(
-                        """取込完了。ダッシュボードへ移動して可視化を確認してください。
-Import completed. Open the dashboard pages to review the visuals."""
+                if diagnostics.get("has_fatal"):
+                    st.error(
+                        "データに致命的なエラーがあるため取込を実行できません。列名と数値形式を確認してください。"
                     )
-                    quality_summary = {
-                        "missing": int(long_df["is_missing"].sum()),
-                        "total": int(len(long_df)),
-                        "sku_count": int(long_df["product_code"].nunique()),
-                        "period_start": str(long_df["month"].min()),
-                        "period_end": str(long_df["month"].max()),
-                    }
-                    st.session_state.import_quality_summary = quality_summary
-                    st.session_state.import_uploaded_file_name = file.name
-                    st.session_state.import_last_uploaded = datetime.now().isoformat()
-                    st.session_state.import_report_completed = False
-                except Exception as e:
-                    st.exception(e)
+                else:
+                    try:
+                        with loading_message("年計データを計算中…"):
+                            long_df, year_df = ingest_wide_dataframe(
+                                df_raw,
+                                product_name_col=product_name_col,
+                                product_code_col=code_col,
+                            )
+
+                        st.success(
+                            """取込完了。ダッシュボードへ移動して可視化を確認してください。
+Import completed. Open the dashboard pages to review the visuals."""
+                        )
+                        quality_summary = {
+                            "missing": int(long_df["is_missing"].sum()),
+                            "total": int(len(long_df)),
+                            "sku_count": int(long_df["product_code"].nunique()),
+                            "period_start": str(long_df["month"].min()),
+                            "period_end": str(long_df["month"].max()),
+                        }
+                        st.session_state.import_quality_summary = quality_summary
+                        st.session_state.import_uploaded_file_name = file.name
+                        st.session_state.import_last_uploaded = datetime.now().isoformat()
+                        st.session_state.import_report_completed = False
+                        st.session_state.import_wizard_step = max(
+                            st.session_state.get("import_wizard_step", 1), 4
+                        )
+                    except Exception as e:
+                        st.exception(e)
 
             st.session_state.import_layout_expanded = False
         else:
@@ -7875,6 +8278,14 @@ After validating and mapping the CSV/XLSX, yearly KPIs will be calculated automa
 
     quality_summary = st.session_state.get("import_quality_summary")
     data_year = st.session_state.get("data_year")
+    if quality_summary:
+        st.session_state.import_wizard_step = max(
+            st.session_state.get("import_wizard_step", 1), 3
+        )
+    if data_year is not None and not getattr(data_year, "empty", True):
+        st.session_state.import_wizard_step = max(
+            st.session_state.get("import_wizard_step", 1), 4
+        )
 
     with import_section(
         4, "データチェック", "Data Quality Review", accent="quality"
@@ -7885,6 +8296,24 @@ After validating and mapping the CSV/XLSX, yearly KPIs will be calculated automa
                 latest_month = data_year["month"].astype(str).max()
             except Exception:
                 latest_month = None
+
+        upload_diagnostics = st.session_state.get("import_upload_diagnostics")
+        if upload_diagnostics:
+            persistent_issues = [
+                issue
+                for issue in upload_diagnostics.get("issues", [])
+                if issue.get("level") in {"warning", "error"}
+            ]
+            if persistent_issues:
+                st.markdown("**アップロード時の警告**")
+                for issue in persistent_issues:
+                    icon = "⚠️" if issue.get("level") == "warning" else "❌"
+                    title = html.escape(issue.get("title", ""))
+                    detail = html.escape(issue.get("detail", ""))
+                    st.markdown(
+                        f"{icon} {title}<br><span class='mck-import-section__hint'>{detail}</span>",
+                        unsafe_allow_html=True,
+                    )
 
         if quality_summary:
             render_quality_summary_panel(quality_summary)
