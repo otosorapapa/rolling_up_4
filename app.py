@@ -177,6 +177,161 @@ CATEGORY_LOOKUP: Dict[str, str] = {
 }
 
 
+RANKING_ALL_LABEL = "すべて"
+RANKING_ALL_CODE = "__all__"
+
+
+def _clean_text_label(value: Optional[object]) -> str:
+    text = str(value).strip() if value is not None else ""
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text.replace("　", " "))
+
+
+def _derive_category_label(name: str) -> str:
+    if not name:
+        return "未分類"
+    mapped = CATEGORY_LOOKUP.get(name)
+    if mapped:
+        return mapped
+    cleaned = _clean_text_label(name)
+    if not cleaned:
+        return "未分類"
+    cleaned = re.sub(r"[（\(].*?[）\)]", "", cleaned)
+    trimmed = re.sub(r"[0-9０-９A-Za-z]+$", "", cleaned).strip()
+    if trimmed:
+        return trimmed
+    return cleaned[:6] or "未分類"
+
+
+def _derive_department_label(
+    category: str, code: Optional[str] = None
+) -> str:
+    base = _clean_text_label(category)
+    if base:
+        token = re.split(r"[・/／>＞-]", base)[0].strip()
+        if token:
+            return token
+    if code:
+        match = re.match(r"([A-Za-z]+)", str(code))
+        if match:
+            return match.group(1).upper()
+        if isinstance(code, str) and len(code) >= 3:
+            return code[:3]
+    return "その他"
+
+
+def build_product_hierarchy(df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Return product hierarchy dataframe with department/category columns."""
+
+    if df is None or getattr(df, "empty", True) or "product_code" not in df.columns:
+        return pd.DataFrame(columns=["product_code", "product_name", "department", "category"])
+
+    base = (
+        df[["product_code", "product_name"]]
+        .drop_duplicates(subset=["product_code"])
+        .copy()
+    )
+    base["product_code"] = base["product_code"].astype(str)
+    base["product_name"] = base["product_name"].fillna(base["product_code"])
+
+    category_col: Optional[str] = None
+    for cand in ("category", "カテゴリ", "カテゴリー", "品目", "大分類", "中分類"):
+        if cand in df.columns:
+            category_col = cand
+            break
+
+    if category_col:
+        category_map = (
+            df[["product_code", category_col]]
+            .dropna(subset=[category_col])
+            .drop_duplicates(subset=["product_code"])
+            .set_index("product_code")[category_col]
+        )
+        base["category"] = base["product_code"].map(category_map).astype(str)
+    else:
+        base["category"] = base["product_name"].map(_derive_category_label)
+
+    department_col: Optional[str] = None
+    for cand in ("department", "部門", "部署", "ディビジョン", "division"):
+        if cand in df.columns:
+            department_col = cand
+            break
+
+    if department_col:
+        dept_map = (
+            df[["product_code", department_col]]
+            .dropna(subset=[department_col])
+            .drop_duplicates(subset=["product_code"])
+            .set_index("product_code")[department_col]
+        )
+        base["department"] = (
+            base["product_code"].map(dept_map).astype(str)
+        )
+    else:
+        base["department"] = base.apply(
+            lambda row: _derive_department_label(
+                row.get("category"), row.get("product_code")
+            ),
+            axis=1,
+        )
+
+    base["category"] = base["category"].apply(lambda v: _clean_text_label(v) or "未分類")
+    base["department"] = base["department"].apply(lambda v: _clean_text_label(v) or "その他")
+    return base[["product_code", "product_name", "department", "category"]]
+
+
+def _format_direction_badge(
+    value: Optional[float],
+    *,
+    scale: float = 1.0,
+    suffix: str = "",
+    precision: int = 1,
+    positive_icon: str = "🟢",
+    negative_icon: str = "🔴",
+    zero_icon: str = "⏸",
+) -> str:
+    if value is None or pd.isna(value):
+        return "—"
+    scaled = float(value) * scale
+    if abs(scaled) < 1e-9:
+        icon = zero_icon
+    elif scaled > 0:
+        icon = positive_icon
+    else:
+        icon = negative_icon
+    if precision <= 0:
+        formatted = f"{scaled:+,.0f}"
+    else:
+        formatted = f"{scaled:+,.{precision}f}"
+    if suffix:
+        formatted = f"{formatted}{suffix}"
+    return f"{icon} {formatted}"
+
+
+def _ranking_metric_options(profile: Dict[str, object]) -> List[Tuple[str, str]]:
+    cogs_ratio = float(profile.get("cogs_ratio", 0.0) or 0.0)
+    opex_ratio = float(profile.get("opex_ratio", 0.0) or 0.0)
+    gross_ratio = max(0.0, 1.0 - cogs_ratio)
+    operating_ratio = max(0.0, gross_ratio - opex_ratio)
+    options: List[Tuple[str, str]] = [
+        ("売上（12カ月累計）", "year_sum"),
+    ]
+    if gross_ratio > 0:
+        options.append(("粗利（推計）", "gross_profit"))
+    if operating_ratio > 0:
+        options.append(("営業利益（推計）", "operating_profit"))
+    options.extend(
+        [
+            ("前年同月比（YoY）", "yoy"),
+            ("前月差（Δ）", "delta"),
+            ("直近傾き（β）", "slope_beta"),
+            ("寄与度", "contribution"),
+        ]
+    )
+    return options
+
+
 def _get_query_params() -> Dict[str, List[str]]:
     """Return the current query parameters as a ``dict[str, list[str]]``.
 
@@ -7557,7 +7712,7 @@ if target_page_key not in NAV_KEYS:
     target_page_key = current_page_key
 
 if st.session_state.get("nav_page") != target_page_key:
-    set_active_page(target_page_key)
+    set_active_page(target_page_key, rerun_on_lock=True)
 
 page_key = st.session_state.get("nav_page", target_page_key)
 page = page_lookup[page_key]
@@ -7764,12 +7919,8 @@ if year_df is not None and not year_df.empty:
         if sidebar_state["rank_end_month"]:
             st.session_state.filters["end_month"] = sidebar_state["rank_end_month"]
         st.sidebar.subheader("評価指標")
-        metric_options = [
-            ("年計（12カ月累計）", "year_sum"),
-            ("前年同月比（YoY）", "yoy"),
-            ("前月差（Δ）", "delta"),
-            ("直近傾き（β）", "slope_beta"),
-        ]
+        template_profile = get_template_config().get("financial_profile", {})
+        metric_options = _ranking_metric_options(template_profile)
         selected_metric = st.sidebar.selectbox(
             "表示指標",
             metric_options,
@@ -7792,6 +7943,15 @@ if year_df is not None and not year_df.empty:
             "年計ゼロを除外",
             value=True,
             key="sidebar_rank_hide_zero",
+        )
+        sidebar_state["rank_limit"] = st.sidebar.slider(
+            "表示件数",
+            min_value=5,
+            max_value=30,
+            value=int(st.session_state.get("sidebar_rank_limit", 10)),
+            step=1,
+            help="Top/Bottomランキングで表示する件数です。",
+            key="sidebar_rank_limit",
         )
     elif page == "比較ビュー":
         st.sidebar.subheader("期間選択")
@@ -9938,6 +10098,7 @@ elif page == "ランキング":
     metric = sidebar_state.get("rank_metric", "year_sum")
     order = sidebar_state.get("rank_order", "desc")
     hide_zero = sidebar_state.get("rank_hide_zero", True)
+    top_limit = int(sidebar_state.get("rank_limit") or 10)
 
     ai_on = st.toggle(
         "AIサマリー",
@@ -9946,40 +10107,489 @@ elif page == "ランキング":
         help="要約・コメント・自動説明を表示（オンデマンド計算）",
     )
 
-    snap = st.session_state.data_year[
-        st.session_state.data_year["month"] == end_m
-    ].copy()
-    total = len(snap)
-    zero_cnt = int((snap["year_sum"] == 0).sum())
-    if hide_zero:
-        snap = snap[snap["year_sum"] > 0]
-    snap = snap.dropna(subset=[metric])
-    snap = snap.sort_values(metric, ascending=(order == "asc"))
-    st.caption(f"除外 {zero_cnt} 件 / 全 {total} 件")
+    unit_value = st.session_state.settings.get("currency_unit", "円")
+    unit_scale = UNIT_MAP.get(unit_value, 1)
+    template_profile = get_template_config().get("financial_profile", {})
+    cogs_ratio = float(template_profile.get("cogs_ratio", 0.0) or 0.0)
+    opex_ratio = float(template_profile.get("opex_ratio", 0.0) or 0.0)
+    gross_ratio = max(0.0, 1.0 - cogs_ratio)
+    operating_ratio = max(0.0, gross_ratio - opex_ratio)
 
-    fig_bar = px.bar(snap.head(20), x="product_name", y=metric)
-    fig_bar = apply_elegant_theme(
-        fig_bar, theme=st.session_state.get("ui_theme", "light")
+    snapshot = latest_yearsum_snapshot(st.session_state.data_year, end_m)
+    total_rows = len(snapshot)
+    zero_cnt = int((snapshot["year_sum"] == 0).sum())
+    if hide_zero:
+        snapshot = snapshot[snapshot["year_sum"] > 0]
+    snapshot = snapshot.dropna(subset=["year_sum"])
+    if snapshot.empty:
+        st.info("該当するデータがありません。フィルター条件を見直してください。")
+        st.stop()
+
+    hierarchy_df = build_product_hierarchy(st.session_state.data_year)
+    if not hierarchy_df.empty:
+        snapshot = snapshot.merge(hierarchy_df, on="product_code", how="left")
+    snapshot["department"] = snapshot.get("department", "その他").fillna("その他")
+    snapshot["category"] = snapshot.get("category", "未分類").fillna("未分類")
+    snapshot["product_name"] = snapshot["product_name"].fillna(snapshot["product_code"])
+    snapshot["gross_est"] = (
+        snapshot["year_sum"] * gross_ratio if gross_ratio > 0 else np.nan
     )
-    render_plotly_with_spinner(
-        fig_bar, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+    snapshot["operating_est"] = (
+        snapshot["year_sum"] * operating_ratio if operating_ratio > 0 else np.nan
+    )
+    total_year_sum = float(snapshot["year_sum"].sum())
+    snapshot["contribution"] = (
+        snapshot["year_sum"] / total_year_sum if total_year_sum > 0 else np.nan
+    )
+
+    st.caption(
+        f"対象月 {end_m} ｜ 除外 {zero_cnt} 件 / 全 {total_rows} 件"
+    )
+
+    st.markdown("#### 階層フィルター")
+    filter_cols = st.columns(3)
+    dept_options = [RANKING_ALL_LABEL] + sorted(
+        snapshot["department"].dropna().unique().tolist()
+    )
+    default_dept = st.session_state.get("rank_filter_department", RANKING_ALL_LABEL)
+    if default_dept not in dept_options:
+        default_dept = RANKING_ALL_LABEL
+    selected_dept = filter_cols[0].selectbox(
+        "部門",
+        dept_options,
+        index=dept_options.index(default_dept),
+        key="rank_filter_department",
+        help="部門で対象SKUを絞り込みます。",
+    )
+
+    working = snapshot.copy()
+    if selected_dept != RANKING_ALL_LABEL:
+        working = working[working["department"] == selected_dept]
+
+    cat_base = working if selected_dept != RANKING_ALL_LABEL else snapshot
+    cat_options = [RANKING_ALL_LABEL] + sorted(
+        cat_base["category"].dropna().unique().tolist()
+    )
+    default_cat = st.session_state.get("rank_filter_category", RANKING_ALL_LABEL)
+    if default_cat not in cat_options:
+        default_cat = RANKING_ALL_LABEL
+    selected_cat = filter_cols[1].selectbox(
+        "カテゴリ",
+        cat_options,
+        index=cat_options.index(default_cat),
+        key="rank_filter_category",
+        help="カテゴリでさらに絞り込みます。",
+    )
+    if selected_cat != RANKING_ALL_LABEL:
+        working = working[working["category"] == selected_cat]
+
+    sku_options = [RANKING_ALL_CODE] + sorted(
+        working["product_code"].dropna().unique().tolist()
+    )
+    default_sku = st.session_state.get("rank_filter_sku", RANKING_ALL_CODE)
+    if default_sku not in sku_options:
+        default_sku = RANKING_ALL_CODE
+    sku_name_map = working.set_index("product_code")["product_name"].to_dict()
+    selected_sku = filter_cols[2].selectbox(
+        "SKU",
+        sku_options,
+        index=sku_options.index(default_sku),
+        format_func=lambda code, mapping=sku_name_map: (
+            RANKING_ALL_LABEL
+            if code == RANKING_ALL_CODE
+            else f"{mapping.get(code, code)} ({code})"
+        ),
+        key="rank_filter_sku",
+        help="個別SKUにフォーカスする場合は選択してください。",
+    )
+    if selected_sku != RANKING_ALL_CODE:
+        working = working[working["product_code"] == selected_sku]
+
+    if working.empty:
+        st.info("条件に一致するSKUがありません。フィルターを調整してください。")
+        st.stop()
+
+    metric_catalog: Dict[str, Dict[str, object]] = {
+        "year_sum": {"column": "year_sum", "label": "売上（12カ月累計）", "type": "currency"},
+        "gross_profit": {
+            "column": "gross_est",
+            "label": "粗利（推計）",
+            "type": "currency",
+        },
+        "operating_profit": {
+            "column": "operating_est",
+            "label": "営業利益（推計）",
+            "type": "currency",
+        },
+        "yoy": {"column": "yoy", "label": "前年同月比（YoY）", "type": "percent"},
+        "delta": {"column": "delta", "label": "前月差（Δ）", "type": "currency"},
+        "slope_beta": {
+            "column": "slope_beta",
+            "label": "直近傾き（β）",
+            "type": "numeric",
+        },
+        "contribution": {"column": "contribution", "label": "寄与度", "type": "percent"},
+    }
+    metric_info = metric_catalog.get(metric, metric_catalog["year_sum"])
+    metric_column = metric_info["column"]
+    available = working.dropna(subset=[metric_column])
+    if available.empty:
+        st.warning(f"{metric_info['label']} のデータが不足しています。")
+        st.stop()
+
+    sort_ascending = order == "asc"
+    sorted_df = (
+        available.sort_values(metric_column, ascending=sort_ascending)
+        .reset_index(drop=True)
+    )
+    sorted_df["順位"] = np.arange(1, len(sorted_df) + 1)
+    sorted_df["yoy_pct"] = sorted_df["yoy"] * 100
+    sorted_df["delta_scaled"] = sorted_df["delta"] / unit_scale
+    sorted_df["contribution_pct"] = sorted_df["contribution"] * 100
+
+    metric_display = sorted_df[metric_column].copy()
+    metric_precision = 0
+    if metric_info["type"] == "currency":
+        metric_display = metric_display / unit_scale
+        metric_precision = 0
+    elif metric_info["type"] == "percent":
+        metric_display = metric_display * 100
+        metric_precision = 1
+    else:
+        metric_precision = 2
+    sorted_df["metric_display"] = metric_display
+    sorted_df["year_sum_display"] = sorted_df["year_sum"] / unit_scale
+    sorted_df["yoy_badge"] = sorted_df["yoy_pct"].apply(
+        lambda v: _format_direction_badge(v, suffix="%", precision=1)
+    )
+    sorted_df["delta_badge"] = sorted_df["delta_scaled"].apply(
+        lambda v: _format_direction_badge(
+            v,
+            suffix=unit_value,
+            precision=0,
+            positive_icon="📈",
+            negative_icon="📉",
+        )
+    )
+
+    metric_label = metric_info["label"]
+    if metric_info["type"] == "currency":
+        metric_col_name = f"{metric_label} ({unit_value})"
+    elif metric_info["type"] == "percent":
+        metric_col_name = f"{metric_label} (%)"
+    else:
+        metric_col_name = metric_label
+
+    display_df = (
+        sorted_df[
+            [
+                "順位",
+                "department",
+                "category",
+                "product_name",
+                "product_code",
+                "metric_display",
+                "yoy_pct",
+                "yoy_badge",
+                "delta_scaled",
+                "delta_badge",
+                "contribution_pct",
+                "year_sum_display",
+            ]
+        ]
+        .rename(
+            columns={
+                "department": "部門",
+                "category": "カテゴリ",
+                "product_name": "商品名",
+                "product_code": "商品コード",
+                "metric_display": metric_col_name,
+                "yoy_pct": "前年比(%)",
+                "yoy_badge": "前年比アイコン",
+                "delta_scaled": f"前月差({unit_value})",
+                "delta_badge": "Δ方向",
+                "contribution_pct": "寄与度(%)",
+                "year_sum_display": f"年計({unit_value})",
+            }
+        )
+    )
+
+    display_df["前年比(%)"] = display_df["前年比(%)"].round(1)
+    display_df[f"前月差({unit_value})"] = display_df[f"前月差({unit_value})"].round(0)
+    display_df["寄与度(%)"] = display_df["寄与度(%)"].round(1)
+    display_df[f"年計({unit_value})"] = display_df[f"年計({unit_value})"].round(0)
+    if metric_info["type"] == "currency":
+        display_df[metric_col_name] = display_df[metric_col_name].round(0)
+    elif metric_info["type"] == "percent":
+        display_df[metric_col_name] = display_df[metric_col_name].round(1)
+    else:
+        display_df[metric_col_name] = display_df[metric_col_name].round(2)
+
+    top_df = sorted_df.head(top_limit)
+    bottom_df = sorted_df.tail(top_limit)
+    bottom_df = (
+        bottom_df.sort_values("順位", ascending=sort_ascending)
+        if sort_ascending
+        else bottom_df.sort_values("順位", ascending=False)
+    )
+
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("対象SKU", f"{len(sorted_df):,} 件")
+    summary_cols[1].metric(
+        "合計年計",
+        format_amount(float(sorted_df["year_sum"].sum()), unit_value),
+    )
+    yoy_valid = sorted_df["yoy"].dropna()
+    avg_yoy = float(np.nanmean(yoy_valid) * 100) if not yoy_valid.empty else float("nan")
+    summary_cols[2].metric(
+        "平均YoY",
+        "—" if pd.isna(avg_yoy) else f"{avg_yoy:+.1f}%",
+    )
+    top_contribution_pct = (
+        float(np.nansum(top_df["contribution"]) * 100) if not top_df.empty else 0.0
+    )
+    summary_cols[3].metric(
+        f"Top{min(top_limit, len(top_df))}寄与度",
+        f"{top_contribution_pct:.1f}%",
+    )
+
+    chart_cols = st.columns([1.4, 1.0])
+    with chart_cols[0]:
+        top_chart_df = top_df.copy()
+        top_chart_df["表示値"] = top_chart_df["metric_display"]
+        top_chart_df["商品"] = top_chart_df["product_name"].fillna(
+            top_chart_df["product_code"]
+        )
+        top_chart_df["yoy_pct"] = top_chart_df["yoy_pct"].fillna(0)
+        if top_chart_df.empty:
+            st.info("Topランキングを表示するデータが不足しています。")
+        else:
+            fig_top = px.bar(
+                top_chart_df.iloc[::-1],
+                x="表示値",
+                y="商品",
+                orientation="h",
+                color="yoy_pct",
+                color_continuous_scale=["#f94144", "#f8961e", "#90be6d"],
+                labels={
+                    "表示値": metric_col_name,
+                    "商品": "商品",
+                    "yoy_pct": "前年比(%)",
+                },
+            )
+            fig_top.update_layout(
+                height=420,
+                margin=dict(l=10, r=10, t=30, b=10),
+                coloraxis_colorbar=dict(title="前年比(%)"),
+            )
+            fig_top = apply_elegant_theme(
+                fig_top, theme=st.session_state.get("ui_theme", "light")
+            )
+            render_plotly_with_spinner(
+                fig_top, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
+
+    with chart_cols[1]:
+        scatter_df = sorted_df.dropna(subset=["contribution_pct", "yoy_pct"])
+        if scatter_df.empty:
+            st.info("寄与度と伸長率を描画するデータが不足しています。")
+        else:
+            scatter_df = scatter_df.copy()
+            scatter_df["trend_segment"] = np.where(
+                scatter_df["yoy_pct"] >= 0, "伸長", "減速"
+            )
+            if metric_info["type"] == "currency":
+                size_base = np.maximum(
+                    scatter_df[metric_column].abs() / max(unit_scale, 1.0), 0.1
+                )
+            elif metric_info["type"] == "percent":
+                size_base = np.maximum(
+                    scatter_df["year_sum"].abs() / max(unit_scale, 1.0), 0.1
+                )
+            else:
+                size_base = np.maximum(scatter_df[metric_column].abs(), 0.1)
+            fig_scatter = px.scatter(
+                scatter_df,
+                x="contribution_pct",
+                y="yoy_pct",
+                size=size_base,
+                color="trend_segment",
+                hover_data={
+                    "商品名": scatter_df["product_name"],
+                    "商品コード": scatter_df["product_code"],
+                    metric_col_name: scatter_df["metric_display"],
+                },
+                labels={
+                    "contribution_pct": "寄与度(%)",
+                    "yoy_pct": "前年比(%)",
+                    "trend_segment": "トレンド",
+                },
+                size_max=40,
+            )
+            fig_scatter.update_layout(
+                height=420,
+                margin=dict(l=10, r=10, t=30, b=10),
+            )
+            fig_scatter = apply_elegant_theme(
+                fig_scatter, theme=st.session_state.get("ui_theme", "light")
+            )
+            render_plotly_with_spinner(
+                fig_scatter, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
+
+    ranking_table_cols = [
+        "順位",
+        "商品名",
+        metric_col_name,
+        "前年比アイコン",
+        f"前月差({unit_value})",
+        "寄与度(%)",
+    ]
+    st.markdown("#### Topランキング")
+    st.dataframe(
+        display_df[ranking_table_cols].head(top_limit),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            metric_col_name: st.column_config.NumberColumn(
+                metric_col_name, format=f"%.{metric_precision}f"
+            ),
+            "寄与度(%)": st.column_config.ProgressColumn(
+                "寄与度(%)", format="%.1f%%", min_value=0.0, max_value=100.0
+            ),
+            f"前月差({unit_value})": st.column_config.NumberColumn(
+                f"前月差({unit_value})", format="%+.0f"
+            ),
+        },
+    )
+
+    st.markdown("#### Bottomランキング")
+    st.dataframe(
+        display_df.loc[bottom_df.index, ranking_table_cols],
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            metric_col_name: st.column_config.NumberColumn(
+                metric_col_name, format=f"%.{metric_precision}f"
+            ),
+            "寄与度(%)": st.column_config.ProgressColumn(
+                "寄与度(%)", format="%.1f%%", min_value=0.0, max_value=100.0
+            ),
+            f"前月差({unit_value})": st.column_config.NumberColumn(
+                f"前月差({unit_value})", format="%+.0f"
+            ),
+        },
+    )
+
+    st.markdown("#### 全体テーブル")
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            metric_col_name: st.column_config.NumberColumn(
+                metric_col_name, format=f"%.{metric_precision}f"
+            ),
+            "寄与度(%)": st.column_config.ProgressColumn(
+                "寄与度(%)", format="%.1f%%", min_value=0.0, max_value=100.0
+            ),
+            f"前月差({unit_value})": st.column_config.NumberColumn(
+                f"前月差({unit_value})", format="%+.0f"
+            ),
+            "前年比(%)": st.column_config.NumberColumn(
+                "前年比(%)", format="%.1f"
+            ),
+            f"年計({unit_value})": st.column_config.NumberColumn(
+                f"年計({unit_value})", format="%.0f"
+            ),
+        },
     )
 
     with st.expander("AIサマリー", expanded=ai_on):
-        if ai_on and not snap.empty:
-            st.info(_ai_sum_df(snap[["year_sum", "yoy", "delta"]].head(200)))
-            st.caption(_ai_comment("上位と下位の入替やYoYの極端値に注意"))
+        if ai_on and not sorted_df.empty:
+            ai_subset = sorted_df[[metric_column, "yoy", "delta", "contribution"]].head(
+                min(len(sorted_df), top_limit * 2)
+            )
+            st.info(_ai_sum_df(ai_subset))
+            ai_metrics = {
+                "トップ平均YoY(%)": float(np.nanmean(top_df["yoy"]) * 100)
+                if not top_df["yoy"].dropna().empty
+                else 0.0,
+                "ボトム平均YoY(%)": float(np.nanmean(bottom_df["yoy"]) * 100)
+                if not bottom_df["yoy"].dropna().empty
+                else 0.0,
+                "トップ寄与度(%)": float(np.nansum(top_df["contribution"]) * 100)
+                if not top_df.empty
+                else 0.0,
+            }
+            st.markdown(
+                f"**推奨アクション**: {_ai_actions(ai_metrics, focus=f'{end_m} {metric_label}')}"
+            )
+            prompt_top = top_df.head(min(5, len(top_df)))[
+                ["product_name", metric_column, "yoy"]
+            ].copy()
+            prompt_bottom = bottom_df.head(min(5, len(bottom_df)))[
+                ["product_name", metric_column, "yoy"]
+            ].copy()
+            for frame in (prompt_top, prompt_bottom):
+                if frame.empty:
+                    continue
+                if metric_info["type"] == "currency":
+                    frame[metric_column] = frame[metric_column] / unit_scale
+                elif metric_info["type"] == "percent":
+                    frame[metric_column] = frame[metric_column] * 100
+                frame["yoy"] = frame["yoy"] * 100
+                frame.rename(
+                    columns={
+                        "product_name": "商品",
+                        metric_column: metric_col_name,
+                        "yoy": "前年比(%)",
+                    },
+                    inplace=True,
+                )
+            prompt_text = f"{end_m}の{metric_label}ランキング"
+            if not prompt_top.empty:
+                prompt_text += "\nTopサマリー:\n" + prompt_top.to_markdown(index=False)
+            if not prompt_bottom.empty:
+                prompt_text += "\nBottomサマリー:\n" + prompt_bottom.to_markdown(index=False)
+            st.caption(_ai_comment(prompt_text))
 
-    st.dataframe(
-        snap[
-            ["product_code", "product_name", "year_sum", "yoy", "delta", "slope_beta"]
-        ].head(100),
-        use_container_width=True,
+    export_df = sorted_df[
+        [
+            "順位",
+            "product_code",
+            "product_name",
+            "department",
+            "category",
+            "year_sum",
+            "gross_est",
+            "operating_est",
+            "yoy",
+            "delta",
+            "slope_beta",
+            "contribution",
+            metric_column,
+        ]
+    ].rename(
+        columns={
+            "product_code": "商品コード",
+            "product_name": "商品名",
+            "department": "部門",
+            "category": "カテゴリ",
+            "year_sum": "年計",
+            "gross_est": "粗利推計",
+            "operating_est": "営業利益推計",
+            "yoy": "前年比",
+            "delta": "前月差",
+            "slope_beta": "傾きβ",
+            "contribution": "寄与度",
+            metric_column: metric_label,
+        }
     )
 
     csv_clicked = st.download_button(
         "CSVダウンロード",
-        data=snap.to_csv(index=False).encode("utf-8-sig"),
+        data=export_df.to_csv(index=False).encode("utf-8-sig"),
         file_name=f"ranking_{metric}_{end_m}.csv",
         mime="text/csv",
         key="ranking_csv_download",
@@ -9992,7 +10602,7 @@ elif page == "ランキング":
         )
     excel_clicked = st.download_button(
         "Excelダウンロード",
-        data=download_excel(snap, f"ranking_{metric}_{end_m}.xlsx"),
+        data=download_excel(export_df, f"ranking_{metric}_{end_m}.xlsx"),
         file_name=f"ranking_{metric}_{end_m}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="ranking_excel_download",
