@@ -115,88 +115,7 @@ PLOTLY_CONFIG = {
 }
 PLOTLY_CONFIG["locale"] = "ja" if current_language == "ja" else "en"
 
-ICON_SVGS: Dict[str, str] = {
-    "template": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2.2\" ry=\"2.2\"/>
-      <path d=\"M8 9h8M8 13h5\"/>
-    </svg>
-    """,
-    "upload": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M4 16.5v3.3A1.2 1.2 0 0 0 5.2 21h13.6A1.2 1.2 0 0 0 20 19.8v-3.3\"/>
-      <path d=\"M12 4v11.5\"/>
-      <path d=\"m7.5 8.5 4.5-4.5 4.5 4.5\"/>
-    </svg>
-    """,
-    "download": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M4 16v3.2A1.2 1.2 0 0 0 5.2 20.4h13.6A1.2 1.2 0 0 0 20 19.2V16\"/>
-      <path d=\"M12 3.5v11.5\"/>
-      <path d=\"m7.5 10.5 4.5 4.5 4.5-4.5\"/>
-    </svg>
-    """,
-    "metrics": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M5 19V9m7 10V5m7 14v-7\"/>
-      <path d=\"M3 19h18\"/>
-    </svg>
-    """,
-    "quality": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M12 3 4.8 6v6c0 4.3 3 7.9 7.2 9 4.2-1.1 7.2-4.7 7.2-9V6Z\"/>
-      <path d=\"m9.5 12 1.9 1.9 3.1-3.4\"/>
-    </svg>
-    """,
-    "info": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <circle cx=\"12\" cy=\"12\" r=\"9\"/>
-      <path d=\"M12 8.5h.01M10.8 11.3h1.2v4.2\"/>
-    </svg>
-    """,
-    "alert": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M12 4 3 19h18Z\"/>
-      <path d=\"M12 10.2v3.6M12 16.8h.01\"/>
-    </svg>
-    """,
-    "check": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"m5.5 12.8 3.6 3.6L18.4 7\"/>
-    </svg>
-    """,
-    "policy": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M4 7h16M6 12h12M8 17h8\"/>
-      <path d=\"M9 5v4M15 10v4M12 15v4\"/>
-    </svg>
-    """,
-    "dataset": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M4 6.5C4 4.6 7.6 3 12 3s8 1.6 8 3.5S16.4 10 12 10 4 8.4 4 6.5Z\"/>
-      <path d=\"M4 11.5C4 13.4 7.6 15 12 15s8-1.6 8-3.5\"/>
-      <path d=\"M4 16.5C4 18.4 7.6 20 12 20s8-1.6 8-3.5\"/>
-    </svg>
-    """,
-    "trend": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"m5 15 4-4 3 3 6-7\"/>
-      <path d=\"M16 7h4v4\"/>
-    </svg>
-    """,
-    "delta": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <path d=\"M5 7h14l-7 10Z\"/>
-    </svg>
-    """,
-    "sku": """
-    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\">
-      <rect x=\"3.5\" y=\"5\" width=\"6\" height=\"14\" rx=\"1.6\"/>
-      <rect x=\"14.5\" y=\"5\" width=\"6\" height=\"14\" rx=\"1.6\"/>
-      <path d=\"M6.5 9h0.01M6.5 12h0.01M6.5 15h0.01M17.5 9h0.01M17.5 12h0.01M17.5 15h0.01\"/>
-    </svg>
-    """,
-}
+ICON_SVGS: Dict[str, str] = {}
 
 METRIC_EXPLANATIONS: Dict[str, Dict[str, str]] = {
     "年計総額": {
@@ -488,7 +407,7 @@ def render_status_message(
 
 
 def icon_svg(name: str) -> str:
-    return ICON_SVGS.get(name, ICON_SVGS["info"])
+    return ""
 
 
 @contextmanager
@@ -516,6 +435,13 @@ def render_icon_label(
     help_text: Optional[str] = None,
 ) -> None:
     icon_html = icon_svg(icon_key)
+    icon_block = ""
+    if icon_html:
+        icon_block = (
+            "<span class='mck-inline-label__icon' aria-hidden='true'>{}</span>".format(
+                icon_html
+            )
+        )
     primary_html = html.escape(primary)
     secondary_html = (
         f"<span class='mck-inline-label__secondary'>{html.escape(secondary)}</span>"
@@ -532,14 +458,14 @@ def render_icon_label(
     st.markdown(
         """
         <div class="mck-inline-label mck-animated">
-          <span class="mck-inline-label__icon" aria-hidden="true">{icon}</span>
+          {icon}
           <div class="mck-inline-label__texts">
             <span class="mck-inline-label__primary">{primary}</span>
             {secondary}
           </div>
           {help}
         </div>
-        """.format(icon=icon_html, primary=primary_html, secondary=secondary_html, help=help_html),
+        """.format(icon=icon_block, primary=primary_html, secondary=secondary_html, help=help_html),
         unsafe_allow_html=True,
     )
 
@@ -549,16 +475,7 @@ def _chunk_list(items: List[Dict[str, object]], size: int) -> List[List[Dict[str
 
 
 def detect_metric_icon(name: str) -> str:
-    lowered = (name or "").lower()
-    if "在庫" in name:
-        return "dataset"
-    if "客" in name or "単価" in name:
-        return "metrics"
-    if "粗利" in name or "利益" in name:
-        return "delta"
-    if "率" in name or "YoY" in name or "成長" in name:
-        return "trend"
-    return "metrics"
+    return ""
 
 
 def render_metric_cards(
@@ -572,7 +489,14 @@ def render_metric_cards(
     for row in rows:
         cols = st.columns(len(row))
         for col, card in zip(cols, row):
-            icon_html = icon_svg(str(card.get("icon", "metrics")))
+            icon_html = icon_svg(str(card.get("icon", "")))
+            icon_block = ""
+            if icon_html:
+                icon_block = (
+                    "<span class='mck-metric-card__icon' aria-hidden='true'>{}</span>".format(
+                        icon_html
+                    )
+                )
             title_text = str(card.get("title", "指標"))
             title = html.escape(title_text)
             subtitle = card.get("subtitle")
@@ -605,15 +529,16 @@ def render_metric_cards(
                 aria_attr = f" aria-label=\"{html.escape(aria_label, quote=True)}\""
                 tab_attr = " tabindex=\"0\""
                 classes.append("has-tooltip")
+                info_symbol = icon_svg("info") or "ℹ"
                 info_html = (
-                    f"<span class='mck-metric-card__info' aria-hidden='true'>{icon_svg('info')}</span>"
+                    f"<span class='mck-metric-card__info' aria-hidden='true'>{info_symbol}</span>"
                 )
             class_attr = " ".join(classes)
             col.markdown(
                 """
                 <div class="{classes}" role="group"{tooltip}{tab}{aria}>
                   <div class="mck-metric-card__header">
-                    <span class="mck-metric-card__icon" aria-hidden="true">{icon}</span>
+                    {icon}
                     <div class="mck-metric-card__title-group">
                       <div class="mck-metric-card__title">{title}</div>
                       {subtitle}
@@ -628,7 +553,7 @@ def render_metric_cards(
                     tooltip=tooltip_attr,
                     tab=tab_attr,
                     aria=aria_attr,
-                    icon=icon_html,
+                    icon=icon_block,
                     title=title,
                     subtitle=subtitle_html,
                     info=info_html,
@@ -698,12 +623,25 @@ def render_quality_summary_panel(summary: Dict[str, object]) -> None:
     if total > 0:
         completeness = max(0.0, min(1.0, 1.0 - (missing / total)))
     level = "success" if completeness >= 0.95 else ("warning" if completeness >= 0.8 else "danger")
-    icon_key = "check" if level == "success" else "alert"
+    icon_text = ""
+    if level == "success":
+        icon_text = "✔"
+    elif level == "warning":
+        icon_text = "!"
+    else:
+        icon_text = "!"
+    icon_block = ""
+    if icon_text:
+        icon_block = (
+            "<div class='mck-alert__icon' aria-hidden='true'>{}</div>".format(
+                html.escape(icon_text)
+            )
+        )
     completeness_pct = completeness * 100
     st.markdown(
         """
         <div class="mck-alert mck-alert--{level} mck-animated">
-          <div class="mck-alert__icon" aria-hidden="true">{icon}</div>
+          {icon}
           <div class="mck-alert__content">
             <strong>データ品質サマリー</strong>
             <p>欠測セルと期間を自動チェックしました。下記を確認して次のステップへ進んでください。</p>
@@ -719,7 +657,7 @@ def render_quality_summary_panel(summary: Dict[str, object]) -> None:
         </div>
         """.format(
             level=level,
-            icon=icon_svg(icon_key),
+            icon=icon_block,
             width=completeness_pct,
             missing=missing,
             total=total,
@@ -6131,7 +6069,7 @@ def import_section(
     number: int,
     title_ja: str,
     title_en: str,
-    icon: str,
+    icon: Optional[str] = None,
     *,
     accent: str = "template",
 ):
@@ -6140,13 +6078,19 @@ def import_section(
     accent_class = f" mck-import-section--{accent}" if accent else ""
     outer = st.container()
     with outer:
-        icon_html = icon if icon else ""
+        icon_block = ""
+        if icon:
+            icon_block = (
+                "<span class='mck-import-section__icon' aria-hidden='true'>{}</span>".format(
+                    html.escape(str(icon))
+                )
+            )
         st.markdown(
             """
             <section class="mck-import-section{accent_class}" data-section="{number:02d}">
               <header class="mck-import-section__header">
                 <span class="mck-import-section__badge">{number:02d}</span>
-                <span class="mck-import-section__icon" aria-hidden="true">{icon}</span>
+                {icon}
                 <div class="mck-import-section__titles">
                   <span class="jp">{title_ja}</span>
                   <span class="en">{title_en}</span>
@@ -6156,7 +6100,7 @@ def import_section(
             """.format(
                 accent_class=accent_class,
                 number=number,
-                icon=icon_html,
+                icon=icon_block,
                 title_ja=html.escape(title_ja),
                 title_en=html.escape(title_en),
             ),
@@ -6253,7 +6197,6 @@ def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, st
     steps.append(
         {
             "key": "template",
-            "icon": icon_svg("template"),
             "label": "テンプレート選択",
             "label_en": "Template Selection",
             "status": status_template,
@@ -6288,7 +6231,6 @@ def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, st
     steps.append(
         {
             "key": "upload",
-            "icon": icon_svg("upload"),
             "label": "データアップロード",
             "label_en": "Data Upload",
             "status": status_upload,
@@ -6326,7 +6268,6 @@ def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, st
     steps.append(
         {
             "key": "quality",
-            "icon": icon_svg("quality"),
             "label": "データチェック",
             "label_en": "Data Quality Review",
             "status": status_quality,
@@ -6354,7 +6295,6 @@ def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, st
     steps.append(
         {
             "key": "report",
-            "icon": icon_svg("download"),
             "label": "レポート出力",
             "label_en": "Report Output",
             "status": status_report,
@@ -6391,6 +6331,14 @@ def render_import_stepper() -> None:
                 f"{html.escape(str(jp))}<span class='en'>{html.escape(str(en))}</span>"
             )
         desc_html = "<br>".join(desc_html_parts) if desc_html_parts else "&nbsp;"
+        status_marker = step.get("icon")
+        if not status_marker:
+            if status == "complete":
+                status_marker = "✔"
+            elif status == "current":
+                status_marker = "…"
+            else:
+                status_marker = ""
         items_html.append(
             """
             <div class="mck-import-stepper__item" data-status="{status}" role="listitem"{aria_current}>
@@ -6409,7 +6357,7 @@ def render_import_stepper() -> None:
             """.format(
                 status=html.escape(str(status)),
                 aria_current=aria_current,
-                icon=step.get("icon", ""),
+                icon=html.escape(str(status_marker)),
                 label=html.escape(str(step.get("label", ""))),
                 label_en=html.escape(str(step.get("label_en", ""))),
                 state=html.escape(state_label),
@@ -6433,28 +6381,24 @@ FLOW_STEP_SEQUENCE: List[Dict[str, str]] = [
         "key": "template",
         "label": "テンプレート選択",
         "label_en": "Template",
-        "icon": icon_svg("template"),
         "hint": "業種テンプレートと推奨指標を選択",
     },
     {
         "key": "upload",
         "label": "データ入力",
         "label_en": "Data Input",
-        "icon": icon_svg("upload"),
         "hint": "CSV/Excelをアップロードして整形",
     },
     {
         "key": "quality",
         "label": "データ確認",
         "label_en": "Data Review",
-        "icon": icon_svg("quality"),
         "hint": "欠測チェックと年計生成",
     },
     {
         "key": "report",
         "label": "指標表示",
         "label_en": "KPI View",
-        "icon": icon_svg("metrics"),
         "hint": "ダッシュボードで指標を確認",
     },
 ]
@@ -6528,6 +6472,7 @@ def render_process_step_bar(page_key: str) -> None:
         label_en = html.escape(step_def["label_en"])
         hint = html.escape(step_def["hint"])
         aria_label = html.escape(f"{step_def['label']} - {step_def['hint']}", quote=True)
+        indicator = step_def.get("icon") or str(idx + 1)
         items_html.append(
             """
             <div class="mck-flow-stepper__item" data-state="{state}" role="listitem" aria-label="{aria}">
@@ -6541,7 +6486,7 @@ def render_process_step_bar(page_key: str) -> None:
             """.format(
                 state=state,
                 aria=aria_label,
-                icon=step_def.get("icon", icon_svg("info")),
+                icon=html.escape(str(indicator)),
                 label=label_jp,
                 label_en=label_en,
                 hint=hint,
@@ -7172,7 +7117,7 @@ if page == "データ取込":
     template_config = get_template_config(active_template)
 
     with import_section(
-        1, "テンプレート選択", "Template Selection", icon_svg("template"), accent="template"
+        1, "テンプレート選択", "Template Selection", accent="template"
     ):
         st.caption(
             """業種テンプレートを選ぶと推奨科目や指標、閾値が自動セットされます。
@@ -7218,7 +7163,10 @@ Applying the template aims to cut manual setup time by about 50% (30 min → und
             )
 
     with import_section(
-        2, "推奨項目と指標", "Recommended Fields & Metrics", icon_svg("metrics"), accent="metrics"
+        2,
+        "推奨項目と指標",
+        "Recommended Fields & Metrics",
+        accent="metrics",
     ):
         st.caption(
             """推奨項目・指標をチェックリストとして活用し、入力漏れを防ぎましょう。
@@ -7305,7 +7253,7 @@ No auto-calculated metrics are linked to this template."""
     )
 
     with import_section(
-        3, "ファイルアップロード", "Data Upload", icon_svg("upload"), accent="upload"
+        3, "ファイルアップロード", "Data Upload", accent="upload"
     ):
         st.markdown(
             "**Excel(.xlsx) / CSV をアップロードしてください。**<br>"
@@ -7460,7 +7408,7 @@ After validating and mapping the CSV/XLSX, yearly KPIs will be calculated automa
     data_year = st.session_state.get("data_year")
 
     with import_section(
-        4, "データチェック", "Data Quality Review", icon_svg("quality"), accent="quality"
+        4, "データチェック", "Data Quality Review", accent="quality"
     ):
         latest_month = None
         if data_year is not None and not getattr(data_year, "empty", True) and "month" in data_year.columns:
