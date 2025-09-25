@@ -176,6 +176,51 @@ CATEGORY_LOOKUP: Dict[str, str] = {
     "オプション保守": "サポート",
 }
 
+
+def _get_query_params() -> Dict[str, List[str]]:
+    """Return the current query parameters as a ``dict[str, list[str]]``.
+
+    Streamlit 1.27+ exposes :pyattr:`st.query_params` as the recommended API
+    while older versions provided :pyfunc:`st.experimental_get_query_params`.
+    This helper normalises the return value so downstream code can continue to
+    work with ``List[str]`` without triggering the deprecation warning that
+    appears in the UI.
+    """
+
+    query_params = getattr(st, "query_params", None)
+    if query_params is None:
+        try:
+            legacy_params = st.experimental_get_query_params()  # type: ignore[attr-defined]
+        except Exception:
+            return {}
+        return {str(k): [str(v) for v in values] for k, values in legacy_params.items()}
+
+    keys: Iterable[str]
+    try:
+        keys = list(query_params.keys())  # type: ignore[attr-defined]
+    except Exception:
+        keys = []
+
+    normalised: Dict[str, List[str]] = {}
+    for key in keys:
+        values: Iterable[str]
+        if hasattr(query_params, "get_all"):
+            try:
+                values = query_params.get_all(key)  # type: ignore[attr-defined]
+            except Exception:
+                values = []
+        else:
+            raw_value = query_params.get(key)  # type: ignore[attr-defined]
+            if isinstance(raw_value, (list, tuple)):
+                values = [str(v) for v in raw_value]
+            elif raw_value is None:
+                values = []
+            else:
+                values = [str(raw_value)]
+        normalised[str(key)] = [str(v) for v in values]
+    return normalised
+
+
 EXPENSE_FILE_CANDIDATES: Tuple[Path, ...] = (
     Path("data/expense.csv"),
     Path("data/expenses.csv"),
@@ -450,7 +495,7 @@ def render_clickable_kpi_cards(
         unsafe_allow_html=True,
     )
 
-    base_params = st.experimental_get_query_params()
+    base_params = _get_query_params()
     base_pairs: List[Tuple[str, str]] = []
     for key, values in base_params.items():
         if key == query_key:
@@ -1067,7 +1112,7 @@ small, .text-small{
   color:var(--muted);
 }
 .block-container{
-  padding:1.8rem 2.6rem 2.6rem;
+  padding:1.1rem 2.4rem 2.4rem;
   max-width:1380px;
 }
 .element-container{
@@ -5001,7 +5046,7 @@ st.sidebar.markdown(
     f"""
     <div class="sidebar-app-brand">
         <div class="sidebar-app-brand__title">{APP_TITLE}</div>
-        <p class="sidebar-app-brand__caption">メニューは色分けされ、各機能の役割がひと目で分かります。</p>
+        <p class="sidebar-app-brand__caption">主要な操作と分析メニューをここから選択できます。</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -5033,50 +5078,48 @@ st.markdown(
       margin:0;
     }
     [data-testid="stSidebar"] .sidebar-legend{
-      background:rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.05);
       border-radius:14px;
-      border:1px solid rgba(255,255,255,0.2);
-      padding:0.75rem 0.85rem;
-      margin:0 0 0.9rem;
-      box-shadow:0 8px 18px rgba(7,32,54,0.28);
+      border:1px solid rgba(255,255,255,0.16);
+      padding:0.75rem 0.9rem;
+      margin:0 0 1rem;
+      box-shadow:0 8px 18px rgba(7,32,54,0.24);
     }
     [data-testid="stSidebar"] .sidebar-legend__title{
       font-size:0.78rem;
       letter-spacing:.12em;
       text-transform:uppercase;
-      margin:0 0 0.55rem;
+      margin:0 0 0.4rem;
       color:rgba(255,255,255,0.72);
       font-weight:700;
     }
-    [data-testid="stSidebar"] .sidebar-legend__items{
+    [data-testid="stSidebar"] .sidebar-legend__list{
+      list-style:none;
+      padding:0;
+      margin:0;
       display:flex;
-      flex-wrap:wrap;
-      gap:0.4rem;
+      flex-direction:column;
+      gap:0.55rem;
     }
     [data-testid="stSidebar"] .sidebar-legend__item{
-      display:inline-flex;
-      align-items:center;
-      gap:0.35rem;
-      padding:0.25rem 0.6rem;
-      border-radius:999px;
-      background:rgba(255,255,255,0.12);
-      color:#ffffff;
-      font-size:0.82rem;
-      font-weight:600;
-      box-shadow:0 4px 10px rgba(7,32,54,0.22);
+      display:flex;
+      flex-direction:column;
+      gap:0.15rem;
     }
-    [data-testid="stSidebar"] .sidebar-legend__item::before{
-      content:"";
-      width:0.55rem;
-      height:0.55rem;
-      border-radius:50%;
-      background:var(--legend-color,#71b7d4);
-      box-shadow:0 0 0 3px rgba(255,255,255,0.15);
+    [data-testid="stSidebar"] .sidebar-legend__item strong{
+      font-size:0.92rem;
+      color:#ffffff;
+      font-weight:700;
+    }
+    [data-testid="stSidebar"] .sidebar-legend__desc{
+      font-size:0.78rem;
+      color:rgba(255,255,255,0.78);
+      line-height:1.5;
     }
     [data-testid="stSidebar"] .sidebar-legend__hint{
-      margin:0.6rem 0 0;
-      font-size:0.78rem;
-      color:rgba(255,255,255,0.7);
+      margin:0.65rem 0 0;
+      font-size:0.75rem;
+      color:rgba(255,255,255,0.68);
     }
     [data-testid="stSidebar"] label.nav-pill{
       display:flex;
@@ -6061,15 +6104,25 @@ used_category_keys = [
 ]
 if used_category_keys:
     legend_items_html = "".join(
-        f"<span class='sidebar-legend__item' style='--legend-color:{SIDEBAR_CATEGORY_STYLES[cat]['color']};'>{SIDEBAR_CATEGORY_STYLES[cat]['label']}</span>"
+        """
+        <li class="sidebar-legend__item">
+            <strong>{label}</strong>
+            <span class="sidebar-legend__desc">{description}</span>
+        </li>
+        """.format(
+            label=html.escape(SIDEBAR_CATEGORY_STYLES[cat]["label"]),
+            description=html.escape(
+                SIDEBAR_CATEGORY_STYLES[cat].get("description", "")
+            ),
+        )
         for cat in used_category_keys
     )
     st.sidebar.markdown(
         f"""
         <div class="sidebar-legend">
-            <p class="sidebar-legend__title">色でカテゴリを表示しています</p>
-            <div class="sidebar-legend__items">{legend_items_html}</div>
-            <p class="sidebar-legend__hint">アイコンにカーソルを合わせると各機能の説明が表示されます。</p>
+            <p class="sidebar-legend__title">機能グループ</p>
+            <ul class="sidebar-legend__list">{legend_items_html}</ul>
+            <p class="sidebar-legend__hint">各メニューにカーソルを合わせると詳細説明が表示されます。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -7977,8 +8030,9 @@ elif page == "経営ダッシュボード":
         end = periods.max().strftime("%Y-%m")
         return f"{start}〜{end}" if start != end else start
 
-    filter_cols = st.columns([2.6, 1.1, 1.1, 1.1])
-    with filter_cols[1]:
+    top_row = st.columns([2.8, 1.1, 1.1, 1.1])
+    highlight_area = top_row[0].container()
+    with top_row[1]:
         period = st.selectbox(
             "期間",
             period_options,
@@ -7986,7 +8040,7 @@ elif page == "経営ダッシュボード":
             key="executive_period_select",
         )
     filters_state["period"] = period
-    with filter_cols[2]:
+    with top_row[2]:
         store = st.selectbox(
             "店舗",
             store_options,
@@ -7994,7 +8048,7 @@ elif page == "経営ダッシュボード":
             key="executive_store_select",
         )
     filters_state["store"] = store
-    with filter_cols[3]:
+    with top_row[3]:
         unit = st.selectbox(
             "単位",
             unit_options,
@@ -8199,16 +8253,17 @@ elif page == "経営ダッシュボード":
             "tab": "資金",
         },
     ]
-    render_clickable_kpi_cards(primary_cards)
-
-    st.caption(
-        f"表示条件：{period} ｜ 対象期間：{current_window_label} ｜ 店舗：{store} ｜ 単位：{unit}"
-    )
+    with highlight_area:
+        st.markdown("#### 重要KPIハイライト")
+        render_clickable_kpi_cards(primary_cards)
+        st.caption(
+            f"表示条件：{period} ｜ 対象期間：{current_window_label} ｜ 店舗：{store} ｜ 単位：{unit}"
+        )
 
     tab_labels = ["売上", "粗利", "在庫", "資金"]
     tabs = st.tabs(tab_labels)
 
-    query_params = st.experimental_get_query_params()
+    query_params = _get_query_params()
     active_tab = query_params.get("dashboard_tab", [])
     active_tab = active_tab[-1] if active_tab else tab_labels[0]
     if active_tab not in tab_labels:
