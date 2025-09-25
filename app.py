@@ -5,6 +5,7 @@ import math
 import re
 import textwrap
 from string import Template
+from urllib.parse import urlencode
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -239,6 +240,22 @@ def _format_delta_label(
     return f"{value:+.{decimals}f}{suffix}"
 
 
+def format_directional_delta(
+    value: Optional[float], *, decimals: int = 1, suffix: str = "%"
+) -> Optional[str]:
+    """Return a directional delta string such as ▲5.2%."""
+
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    magnitude = abs(value)
+    if magnitude == 0:
+        return f"±0{suffix}"
+    arrow = "▲" if value > 0 else "▼"
+    return f"{arrow}{magnitude:.{decimals}f}{suffix}"
+
+
 def render_kpi_cards(cards: List[Dict[str, Optional[str]]]) -> None:
     """Render a responsive KPI card row following the dashboard hierarchy."""
 
@@ -321,9 +338,10 @@ def render_kpi_cards(cards: List[Dict[str, Optional[str]]]) -> None:
         cls = card.get("variant", "")
         delta_cls = ""
         if delta:
-            if str(delta).startswith("+"):
+            delta_str = str(delta)
+            if delta_str.startswith("+") or "▲" in delta_str:
                 delta_cls = " is-up"
-            elif str(delta).startswith("-"):
+            elif delta_str.startswith("-") or "▼" in delta_str:
                 delta_cls = " is-down"
         body = f"<div class='dashboard-kpi-card__title'>{title}</div>"
         body += f"<div class='dashboard-kpi-card__value'>{value}</div>"
@@ -340,6 +358,147 @@ def render_kpi_cards(cards: List[Dict[str, Optional[str]]]) -> None:
 
     wrapper = "".join(card_html)
     st.markdown(f"<div class='dashboard-kpi-grid'>{wrapper}</div>", unsafe_allow_html=True)
+
+
+def render_clickable_kpi_cards(
+    cards: List[Dict[str, Optional[str]]], *, query_key: str = "dashboard_tab"
+) -> None:
+    """Render the primary KPI cards that also act as navigation triggers."""
+
+    if not cards:
+        return
+
+    st.markdown(
+        f"""
+        <style>
+        .dashboard-kgi-grid{{
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+          gap:1rem;
+          margin-bottom:1.5rem;
+        }}
+        .dashboard-kgi-card{{
+          position:relative;
+          display:block;
+          padding:1.15rem 1.35rem;
+          border-radius:{CARD_RADIUS}px;
+          border:1px solid {BORDER_COLOR};
+          background:{SURFACE_COLOR};
+          color:{TEXT_COLOR};
+          text-decoration:none;
+          box-shadow:{CARD_SHADOW};
+          transition:transform .18s ease, box-shadow .18s ease;
+        }}
+        .dashboard-kgi-card:hover,
+        .dashboard-kgi-card:focus{{
+          transform:translateY(-2px);
+          box-shadow:0 18px 32px rgba({PRIMARY_RGB},0.18);
+          text-decoration:none;
+        }}
+        .dashboard-kgi-card__label{{
+          font-size:0.75rem;
+          letter-spacing:.12em;
+          text-transform:uppercase;
+          color:{MUTED_COLOR};
+          margin-bottom:0.35rem;
+        }}
+        .dashboard-kgi-card__value{{
+          font-family:{FONT_NUMERIC};
+          font-size:1.8rem;
+          font-weight:700;
+          margin-bottom:0.25rem;
+        }}
+        .dashboard-kgi-card__delta{{
+          font-size:0.95rem;
+          font-weight:600;
+        }}
+        .dashboard-kgi-card__delta.is-up{{color:{SUCCESS_COLOR};}}
+        .dashboard-kgi-card__delta.is-down{{color:{ERROR_COLOR};}}
+        .dashboard-kgi-card__caption{{
+          margin-top:0.45rem;
+          font-size:0.85rem;
+          color:{MUTED_COLOR};
+        }}
+        .dashboard-kgi-card.is-accent{{
+          border-color:{ACCENT_COLOR};
+          background:linear-gradient(135deg,{ACCENT_SOFT},{ACCENT_COLOR});
+          color:#fff;
+        }}
+        .dashboard-kgi-card.is-accent .dashboard-kgi-card__label,
+        .dashboard-kgi-card.is-accent .dashboard-kgi-card__caption{{
+          color:rgba(255,255,255,0.85);
+        }}
+        .dashboard-kgi-card.is-primary{{
+          border-color:{PRIMARY_COLOR};
+          background:linear-gradient(135deg,{PRIMARY_LIGHT},{PRIMARY_COLOR});
+          color:#fff;
+        }}
+        .dashboard-kgi-card.is-primary .dashboard-kgi-card__label,
+        .dashboard-kgi-card.is-primary .dashboard-kgi-card__caption{{
+          color:rgba(255,255,255,0.85);
+        }}
+        .dashboard-kgi-card.is-success{{
+          border-color:{SUCCESS_COLOR};
+          background:linear-gradient(135deg,{lighten(SUCCESS_COLOR,0.55)},{SUCCESS_COLOR});
+          color:#0b1f3b;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    base_params = st.experimental_get_query_params()
+    base_pairs: List[Tuple[str, str]] = []
+    for key, values in base_params.items():
+        if key == query_key:
+            continue
+        if isinstance(values, list):
+            base_pairs.extend((key, v) for v in values)
+        else:
+            base_pairs.append((key, str(values)))
+
+    blocks: List[str] = []
+    for card in cards:
+        label = html.escape(str(card.get("title", "")))
+        value = html.escape(str(card.get("value", "—")))
+        delta = card.get("delta")
+        delta_html = html.escape(str(delta)) if delta else ""
+        caption = (
+            html.escape(str(card.get("caption", "")))
+            if card.get("caption")
+            else ""
+        )
+        variant = card.get("variant", "")
+        tab_target = card.get("tab")
+        params = list(base_pairs)
+        if tab_target:
+            params.append((query_key, tab_target))
+        href = "?" + urlencode(params)
+        delta_cls = ""
+        if delta:
+            delta_str = str(delta)
+            if delta_str.startswith("+") or "▲" in delta_str:
+                delta_cls = " is-up"
+            elif delta_str.startswith("-") or "▼" in delta_str:
+                delta_cls = " is-down"
+        inner = (
+            f"<span class='dashboard-kgi-card__label'>{label}</span>"
+            f"<span class='dashboard-kgi-card__value'>{value}</span>"
+        )
+        if delta_html:
+            inner += (
+                f"<span class='dashboard-kgi-card__delta{delta_cls}'>{delta_html}</span>"
+            )
+        if caption:
+            inner += f"<span class='dashboard-kgi-card__caption'>{caption}</span>"
+        blocks.append(
+            f"<a class='dashboard-kgi-card {variant}' href='{href}'>{inner}</a>"
+        )
+
+    st.markdown(
+        "<div class='dashboard-kgi-grid'>" + "".join(blocks) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 @contextmanager
@@ -7516,6 +7675,8 @@ elif page == "経営ダッシュボード":
     df_sales["店舗"] = df_sales["店舗"].fillna("未設定")
     df_sales["商品"] = df_sales["商品"].fillna("未設定")
     df_sales["カテゴリ"] = df_sales["商品"].map(CATEGORY_LOOKUP).fillna("その他")
+    if "チャネル" not in df_sales.columns:
+        df_sales["チャネル"] = df_sales["店舗"].astype(str)
     df_sales["月"] = df_sales["日付"].dt.to_period("M").astype(str)
 
     def _get_default_state(key: str, default: str, options: List[str]) -> str:
@@ -7684,667 +7845,733 @@ elif page == "経営ダッシュボード":
     if current_sales:
         margin_caption = f"粗利率 {margin_rate * 100:.1f}%"
 
-    render_kpi_cards(
-        [
-            {
-                "title": "売上合計",
-                "value": f"{current_sales:,.0f} 円",
-                "delta": _format_delta_label(sales_delta_pct),
-                "variant": "is-primary",
-                "caption": f"{anchor_month} 基準",
-            },
-            {
-                "title": "粗利",
-                "value": f"{current_gross:,.0f} 円",
-                "delta": _format_delta_label(gross_delta_pct),
-                "variant": "is-accent",
-                "caption": margin_caption,
-            },
-            {
-                "title": "キャッシュ残高",
-                "value": f"{cash_current:,.0f} 円",
-                "delta": _format_delta_label(cash_delta_pct),
-                "variant": "is-success",
-                "caption": "粗利累積×0.25を加味した想定残高",
-            },
-        ]
-    )
+    primary_cards = [
+        {
+            "title": "売上総額",
+            "value": f"¥{current_sales:,.0f}",
+            "delta": format_directional_delta(sales_delta_pct),
+            "variant": "is-primary",
+            "caption": f"{period}｜基準 {anchor_month}",
+            "tab": "売上",
+        },
+        {
+            "title": "粗利総額",
+            "value": f"¥{current_gross:,.0f}",
+            "delta": format_directional_delta(gross_delta_pct),
+            "variant": "is-accent",
+            "caption": margin_caption,
+            "tab": "粗利",
+        },
+        {
+            "title": "キャッシュ残高",
+            "value": f"¥{cash_current:,.0f}",
+            "delta": format_directional_delta(cash_delta_pct),
+            "variant": "is-success",
+            "caption": "粗利累積×0.25換算",
+            "tab": "資金",
+        },
+    ]
+    render_clickable_kpi_cards(primary_cards)
 
     st.caption(
         f"表示条件：{period} ｜ 基準月：{anchor_month} ｜ 対象店舗：{store}"
     )
 
-    tabs = st.tabs(["売上", "粗利", "在庫", "資金"])
+    tab_labels = ["売上", "粗利", "在庫", "資金"]
+    tabs = st.tabs(tab_labels)
+
+    query_params = st.experimental_get_query_params()
+    active_tab = query_params.get("dashboard_tab", [])
+    active_tab = active_tab[-1] if active_tab else tab_labels[0]
+    if active_tab not in tab_labels:
+        active_tab = tab_labels[0]
+    st.session_state["executive_active_tab"] = active_tab
 
     with tabs[0]:
-        st.markdown("#### トレンド（前年同月比つき）")
-        trend_scope = df_sales[df_sales["日付"] <= current_end]
-        if store != "全店舗":
-            trend_scope = trend_scope[trend_scope["店舗"] == store]
-        if trend_scope.empty:
-            st.info("トレンドを描画できるデータがありません。")
-        else:
-            trend_monthly = (
-                trend_scope.groupby("月", as_index=False)["売上"].sum().sort_values("月")
-            )
-            trend_monthly["month_dt"] = pd.to_datetime(trend_monthly["月"], format="%Y-%m")
-            trend_monthly = trend_monthly[trend_monthly["month_dt"] <= current_end]
-            trend_monthly = trend_monthly.tail(24)
-            trend_monthly["前年同月売上"] = trend_monthly["売上"].shift(12)
-            fig_trend = go.Figure()
-            fig_trend.add_trace(
-                go.Scatter(
-                    x=trend_monthly["month_dt"],
-                    y=trend_monthly["売上"],
-                    name="売上",
-                    mode="lines+markers",
-                    line=dict(color=PRIMARY_COLOR, width=3),
-                    hovertemplate="月=%{x|%Y-%m}<br>売上=%{y:,.0f}円<extra></extra>",
+        st.markdown("#### 指標カード")
+        sales_goal = prev_sales * 1.05 if prev_sales else current_sales
+        sales_goal = sales_goal or 0.0
+        goal_rate = (current_sales / sales_goal * 100.0) if sales_goal else None
+        goal_delta = (goal_rate - 100.0) if goal_rate is not None else None
+        yoy_amount = current_sales - prev_sales if prev_sales else None
+        sales_cards = [
+            {
+                "title": "売上総額",
+                "value": f"¥{current_sales:,.0f}",
+                "delta": format_directional_delta(sales_delta_pct),
+                "variant": "is-primary",
+                "caption": f"{period}の売上",
+            },
+            {
+                "title": "目標達成率",
+                "value": f"{goal_rate:.1f}%" if goal_rate is not None else "—",
+                "delta": format_directional_delta(goal_delta, suffix="pt")
+                if goal_delta is not None
+                else None,
+                "variant": "is-accent",
+                "caption": f"目標 ¥{sales_goal:,.0f}",
+            },
+            {
+                "title": "前期比",
+                "value": format_directional_delta(sales_delta_pct) or "—",
+                "delta": (
+                    f"{yoy_amount:+,.0f}円" if yoy_amount is not None else None
+                ),
+                "variant": "is-success",
+                "caption": "金額差分を併記",
+            },
+        ]
+        render_kpi_cards(sales_cards)
+
+        st.markdown("#### トレンドと分解")
+        sales_cols = st.columns([1.9, 1.1])
+        with sales_cols[0]:
+            st.markdown("##### 売上トレンド（前年同月比）")
+            trend_scope = df_sales[df_sales["日付"] <= current_end]
+            if store != "全店舗":
+                trend_scope = trend_scope[trend_scope["店舗"] == store]
+            if trend_scope.empty:
+                st.info("トレンドを描画できるデータがありません。")
+            else:
+                trend_monthly = (
+                    trend_scope.groupby("月", as_index=False)["売上"].sum().sort_values("月")
                 )
-            )
-            if trend_monthly["前年同月売上"].notna().any():
+                trend_monthly["month_dt"] = pd.to_datetime(
+                    trend_monthly["月"], format="%Y-%m"
+                )
+                trend_monthly = trend_monthly[trend_monthly["month_dt"] <= current_end]
+                trend_monthly = trend_monthly.tail(24)
+                trend_monthly["前年同月売上"] = trend_monthly["売上"].shift(12)
+                fig_trend = go.Figure()
                 fig_trend.add_trace(
                     go.Scatter(
                         x=trend_monthly["month_dt"],
-                        y=trend_monthly["前年同月売上"],
-                        name="前年同月",
-                        mode="lines",
-                        line=dict(color=ACCENT_COLOR, dash="dot", width=2),
-                        hovertemplate="月=%{x|%Y-%m}<br>前年同月=%{y:,.0f}円<extra></extra>",
+                        y=trend_monthly["売上"],
+                        name="売上",
+                        mode="lines+markers",
+                        line=dict(color=PRIMARY_COLOR, width=3),
+                        hovertemplate="月=%{x|%Y-%m}<br>売上=%{y:,.0f}円<extra></extra>",
                     )
                 )
-            fig_trend.update_layout(
-                height=420,
-                margin=dict(l=10, r=10, t=40, b=10),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
-            )
-            fig_trend.update_xaxes(title="月")
-            fig_trend.update_yaxes(title="金額（円）", tickformat=",.0f")
-            fig_trend = apply_elegant_theme(
-                fig_trend, theme=st.session_state.get("ui_theme", "light")
-            )
-            render_plotly_with_spinner(
-                fig_trend, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-            )
-
-        st.markdown("#### 構成比")
-        comp_cols = st.columns(2)
-        with comp_cols[0]:
-            st.markdown("##### 商品別売上（上位10）")
+                if trend_monthly["前年同月売上"].notna().any():
+                    fig_trend.add_trace(
+                        go.Scatter(
+                            x=trend_monthly["month_dt"],
+                            y=trend_monthly["前年同月売上"],
+                            name="前年同月",
+                            mode="lines",
+                            line=dict(color=ACCENT_COLOR, dash="dot", width=2),
+                            hovertemplate="月=%{x|%Y-%m}<br>前年同月=%{y:,.0f}円<extra></extra>",
+                        )
+                    )
+                fig_trend.update_layout(
+                    height=420,
+                    margin=dict(l=10, r=10, t=40, b=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
+                )
+                fig_trend.update_xaxes(title="月")
+                fig_trend.update_yaxes(title="金額（円）", tickformat=",.0f")
+                fig_trend = apply_elegant_theme(
+                    fig_trend, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(
+                    fig_trend, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
+        with sales_cols[1]:
+            st.markdown("##### 商品カテゴリ別トップ5")
             if current_df.empty:
-                st.info("選択した期間の売上データがありません。")
+                st.info("選択期間の売上データがありません。")
             else:
-                product_sales = (
-                    current_df.groupby("商品", as_index=False)["売上"].sum().sort_values(
-                        "売上", ascending=False
-                    )
+                category_sales = (
+                    current_df.groupby("カテゴリ", as_index=False)["売上"].sum()
+                    .sort_values("売上", ascending=False)
+                    .head(5)
+                    .sort_values("売上")
                 )
-                top_products = product_sales.head(10).sort_values("売上")
-                fig_product = px.bar(
-                    top_products,
+                fig_category = px.bar(
+                    category_sales,
                     x="売上",
-                    y="商品",
+                    y="カテゴリ",
+                    orientation="h",
+                    color_discrete_sequence=[ACCENT_COLOR],
+                )
+                fig_category.update_layout(
+                    height=260,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title="金額（円）",
+                    yaxis_title="カテゴリ",
+                )
+                fig_category = apply_elegant_theme(
+                    fig_category, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(
+                    fig_category, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
+
+            st.markdown("##### チャネル別売上")
+            if current_all_df.empty:
+                st.info("チャネル別の売上データがありません。")
+            else:
+                channel_sales = (
+                    current_all_df.groupby("チャネル", as_index=False)["売上"].sum()
+                    .sort_values("売上", ascending=True)
+                )
+                fig_channel = px.bar(
+                    channel_sales,
+                    y="チャネル",
+                    x="売上",
                     orientation="h",
                     color_discrete_sequence=[PRIMARY_COLOR],
                 )
-                fig_product.update_layout(
-                    height=380,
+                fig_channel.update_layout(
+                    height=260,
                     margin=dict(l=10, r=10, t=30, b=10),
                     xaxis_title="金額（円）",
-                    yaxis_title="商品",
+                    yaxis_title="チャネル",
                 )
-                fig_product = apply_elegant_theme(
-                    fig_product, theme=st.session_state.get("ui_theme", "light")
-                )
-                render_plotly_with_spinner(
-                    fig_product, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-                )
-
-        with comp_cols[1]:
-            st.markdown("##### 店舗別売上・利益比較")
-            if current_all_df.empty:
-                st.info("比較する店舗データがありません。")
-            else:
-                store_summary = (
-                    current_all_df.groupby("店舗", as_index=False)
-                    .agg(売上=("売上", "sum"), 粗利=("粗利", "sum"))
-                    .sort_values("売上", ascending=True)
-                )
-                store_summary["営業利益"] = store_summary["粗利"] - fixed_cost_per_store
-                fig_store = go.Figure()
-                fig_store.add_trace(
-                    go.Bar(
-                        y=store_summary["店舗"],
-                        x=store_summary["売上"],
-                        name="売上",
-                        orientation="h",
-                        marker_color=PRIMARY_COLOR,
-                    )
-                )
-                fig_store.add_trace(
-                    go.Bar(
-                        y=store_summary["店舗"],
-                        x=store_summary["粗利"],
-                        name="粗利",
-                        orientation="h",
-                        marker_color=ACCENT_COLOR,
-                    )
-                )
-                fig_store.add_trace(
-                    go.Bar(
-                        y=store_summary["店舗"],
-                        x=store_summary["営業利益"],
-                        name="営業利益",
-                        orientation="h",
-                        marker_color=SUCCESS_COLOR,
-                    )
-                )
-                fig_store.update_layout(
-                    barmode="group",
-                    height=380,
-                    margin=dict(l=10, r=10, t=30, b=10),
-                    xaxis_title="金額（円）",
-                    yaxis_title="店舗",
-                )
-                fig_store = apply_elegant_theme(
-                    fig_store, theme=st.session_state.get("ui_theme", "light")
+                fig_channel = apply_elegant_theme(
+                    fig_channel, theme=st.session_state.get("ui_theme", "light")
                 )
                 render_plotly_with_spinner(
-                    fig_store, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                    fig_channel, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
                 )
 
-        st.markdown("##### ABC分析")
-        if current_df.empty:
-            st.info("ABC分析を行うデータがありません。")
+        st.markdown("#### 明細テーブル")
+        detail_df = current_df.copy()
+        if detail_df.empty:
+            st.info("明細を表示するデータがありません。")
         else:
-            product_sales = (
-                current_df.groupby("商品", as_index=False)["売上"].sum().sort_values(
-                    "売上", ascending=False
-                )
+            detail_df["日付"] = detail_df["日付"].dt.strftime("%Y-%m-%d")
+            detail_df = detail_df.sort_values("日付", ascending=False)
+            display_cols = [
+                "日付",
+                "店舗",
+                "商品",
+                "カテゴリ",
+                "売上",
+                "数量",
+                "粗利",
+                "粗利率",
+            ]
+            st.dataframe(
+                detail_df[display_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "売上": st.column_config.NumberColumn("売上", format="¥%,d"),
+                    "粗利": st.column_config.NumberColumn("粗利", format="¥%,d"),
+                    "数量": st.column_config.NumberColumn("数量", format="%,d"),
+                    "粗利率": st.column_config.NumberColumn("粗利率", format="%.1f%%"),
+                },
             )
-            total_sales_period = float(product_sales["売上"].sum())
-            if total_sales_period <= 0:
-                st.info("売上が0のためABC分析を計算できません。")
+
+            csv_bytes = (
+                detail_df[display_cols].to_csv(index=False).encode("utf-8-sig")
+            )
+            pdf_table_df = (
+                detail_df.groupby("商品", as_index=False)["売上"].sum()
+                .rename(columns={"商品": "product_name", "売上": "year_sum"})
+                .assign(product_code=lambda df: df["product_name"])
+            )
+            pdf_kpi = {
+                "売上総額": f"¥{current_sales:,.0f}",
+                "目標達成率": f"{goal_rate:.1f}%" if goal_rate is not None else "—",
+                "前期比": format_directional_delta(sales_delta_pct) or "—",
+            }
+            pdf_filename = f"sales_detail_{anchor_month or 'latest'}.pdf"
+            pdf_bytes = (
+                download_pdf_overview(pdf_kpi, pdf_table_df, pdf_filename)
+                if not pdf_table_df.empty
+                else b""
+            )
+            download_cols = st.columns(2)
+            with download_cols[0]:
+                st.download_button(
+                    "CSVダウンロード",
+                    data=csv_bytes,
+                    file_name=f"sales_detail_{anchor_month}.csv",
+                    mime="text/csv",
+                )
+            with download_cols[1]:
+                st.download_button(
+                    "PDFダウンロード",
+                    data=pdf_bytes if pdf_bytes else b"",
+                    file_name=pdf_filename,
+                    mime="application/pdf",
+                    disabled=not pdf_bytes,
+                )
+    with tabs[1]:
+        st.markdown("#### 指標カード")
+        gross_goal = prev_gross * 1.05 if prev_gross else current_gross
+        gross_goal = gross_goal or 0.0
+        gross_goal_rate = (
+            (current_gross / gross_goal * 100.0) if gross_goal else None
+        )
+        gross_goal_delta = (
+            gross_goal_rate - 100.0 if gross_goal_rate is not None else None
+        )
+        margin_pct = margin_rate * 100 if not math.isnan(margin_rate) else None
+        gross_cards = [
+            {
+                "title": "粗利総額",
+                "value": f"¥{current_gross:,.0f}",
+                "delta": format_directional_delta(gross_delta_pct),
+                "variant": "is-accent",
+                "caption": "期間粗利",
+            },
+            {
+                "title": "粗利率",
+                "value": f"{margin_pct:.1f}%" if margin_pct is not None else "—",
+                "delta": format_directional_delta(margin_delta, suffix="pt")
+                if margin_delta is not None
+                else None,
+                "variant": "is-primary",
+                "caption": "売上に対する粗利率",
+            },
+            {
+                "title": "目標達成率",
+                "value": (
+                    f"{gross_goal_rate:.1f}%" if gross_goal_rate is not None else "—"
+                ),
+                "delta": format_directional_delta(gross_goal_delta, suffix="pt")
+                if gross_goal_delta is not None
+                else None,
+                "variant": "is-success",
+                "caption": f"目標 ¥{gross_goal:,.0f}",
+            },
+        ]
+        render_kpi_cards(gross_cards)
+
+        st.markdown("#### トレンドと分解")
+        gross_cols = st.columns([1.9, 1.1])
+        with gross_cols[0]:
+            st.markdown("##### 粗利トレンド")
+            gross_scope = df_sales[df_sales["日付"] <= current_end]
+            if store != "全店舗":
+                gross_scope = gross_scope[gross_scope["店舗"] == store]
+            gross_trend = (
+                gross_scope.groupby("月", as_index=False)
+                .agg(売上=("売上", "sum"), 粗利=("粗利", "sum"))
+                .sort_values("月")
+            )
+            if gross_trend.empty:
+                st.info("粗利トレンドを描画できるデータがありません。")
             else:
-                product_sales["累積構成比"] = (
-                    product_sales["売上"].cumsum() / total_sales_period * 100.0
+                gross_trend["month_dt"] = pd.to_datetime(
+                    gross_trend["月"], format="%Y-%m"
                 )
-                product_sales["ランク"] = np.where(
-                    product_sales["累積構成比"] <= 80,
-                    "A",
-                    np.where(product_sales["累積構成比"] <= 95, "B", "C"),
+                gross_trend = gross_trend[gross_trend["month_dt"] <= current_end].tail(24)
+                gross_trend["粗利率"] = np.where(
+                    gross_trend["売上"] > 0,
+                    gross_trend["粗利"] / gross_trend["売上"] * 100.0,
+                    np.nan,
                 )
-                fig_abc = make_subplots(specs=[[{"secondary_y": True}]])
-                marker_colors = product_sales["ランク"].map(
-                    {"A": PRIMARY_COLOR, "B": ACCENT_COLOR, "C": BORDER_STRONG}
-                )
-                fig_abc.add_trace(
+                fig_gross = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_gross.add_trace(
                     go.Bar(
-                        x=product_sales["商品"],
-                        y=product_sales["売上"],
-                        name="売上",
-                        marker_color=marker_colors,
+                        x=gross_trend["month_dt"],
+                        y=gross_trend["粗利"],
+                        name="粗利",
+                        marker_color=ACCENT_COLOR,
                     ),
                     secondary_y=False,
                 )
-                fig_abc.add_trace(
+                fig_gross.add_trace(
                     go.Scatter(
-                        x=product_sales["商品"],
-                        y=product_sales["累積構成比"],
-                        name="累積構成比",
+                        x=gross_trend["month_dt"],
+                        y=gross_trend["粗利率"],
+                        name="粗利率",
                         mode="lines+markers",
-                        marker=dict(color=ACCENT_COLOR),
-                        line=dict(color=ACCENT_COLOR, width=2),
+                        line=dict(color=PRIMARY_COLOR, width=2),
                     ),
                     secondary_y=True,
                 )
-                fig_abc.add_shape(
-                    type="line",
-                    x0=-0.5,
-                    x1=len(product_sales) - 0.5,
-                    y0=80,
-                    y1=80,
-                    line=dict(color=SUCCESS_COLOR, dash="dash"),
-                    yref="y2",
-                )
-                fig_abc.add_annotation(
-                    x=max(len(product_sales) - 1, 0),
-                    y=80,
-                    yref="y2",
-                    text="80% Aランク閾値",
-                    showarrow=False,
-                    font=dict(color=SUCCESS_COLOR),
-                )
-                fig_abc.update_layout(
+                fig_gross.update_layout(
                     height=420,
                     margin=dict(l=10, r=10, t=40, b=10),
-                    xaxis_title="商品",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
                 )
-                fig_abc.update_yaxes(
-                    title_text="売上（円）", tickformat=",.0f", secondary_y=False
+                fig_gross.update_xaxes(title="月")
+                fig_gross.update_yaxes(
+                    title_text="粗利（円）", tickformat=",.0f", secondary_y=False
                 )
-                fig_abc.update_yaxes(
-                    title_text="累積構成比（％）",
-                    tickformat=",.0f",
-                    range=[0, 105],
+                fig_gross.update_yaxes(
+                    title_text="粗利率（％）",
+                    tickformat=",.1f",
+                    range=[0, 100],
                     secondary_y=True,
                 )
-                fig_abc = apply_elegant_theme(
-                    fig_abc, theme=st.session_state.get("ui_theme", "light")
+                fig_gross = apply_elegant_theme(
+                    fig_gross, theme=st.session_state.get("ui_theme", "light")
                 )
                 render_plotly_with_spinner(
-                    fig_abc, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                    fig_gross, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
                 )
-
-        st.markdown("##### 明細")
-        if current_df.empty:
-            st.info("明細を表示するデータがありません。")
-        else:
-            detail_df = current_df.copy()
-            detail_df["日付"] = detail_df["日付"].dt.strftime("%Y-%m-%d")
-            display_cols = ["日付", "店舗", "商品", "売上", "数量", "粗利率", "粗利"]
-            st.dataframe(
-                detail_df[display_cols].style.format(
-                    {
-                        "売上": "¥{:,.0f}",
-                        "数量": "{:,.0f}",
-                        "粗利率": "{:.1%}",
-                        "粗利": "¥{:,.0f}",
-                    }
-                ),
-                use_container_width=True,
-            )
-            st.download_button(
-                "売上明細CSV",
-                data=detail_df[display_cols].to_csv(index=False).encode("utf-8-sig"),
-                file_name=f"sales_detail_{anchor_month}.csv",
-                mime="text/csv",
-            )
-
-    with tabs[1]:
-        st.markdown("#### 粗利トレンド")
-        gross_scope = df_sales[df_sales["日付"] <= current_end]
-        if store != "全店舗":
-            gross_scope = gross_scope[gross_scope["店舗"] == store]
-        gross_trend = (
-            gross_scope.groupby("月", as_index=False)
-            .agg(売上=("売上", "sum"), 粗利=("粗利", "sum"))
-            .sort_values("月")
-        )
-        if gross_trend.empty:
-            st.info("粗利トレンドを描画できるデータがありません。")
-        else:
-            gross_trend["month_dt"] = pd.to_datetime(gross_trend["月"], format="%Y-%m")
-            gross_trend = gross_trend[gross_trend["month_dt"] <= current_end].tail(24)
-            gross_trend["粗利率"] = np.where(
-                gross_trend["売上"] > 0,
-                gross_trend["粗利"] / gross_trend["売上"] * 100.0,
-                np.nan,
-            )
-            fig_gross = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_gross.add_trace(
-                go.Bar(
-                    x=gross_trend["month_dt"],
-                    y=gross_trend["粗利"],
-                    name="粗利",
-                    marker_color=ACCENT_COLOR,
-                ),
-                secondary_y=False,
-            )
-            fig_gross.add_trace(
-                go.Scatter(
-                    x=gross_trend["month_dt"],
-                    y=gross_trend["粗利率"],
-                    name="粗利率",
-                    mode="lines+markers",
-                    line=dict(color=PRIMARY_COLOR, width=2),
-                ),
-                secondary_y=True,
-            )
-            fig_gross.update_layout(
-                height=420,
-                margin=dict(l=10, r=10, t=40, b=10),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
-            )
-            fig_gross.update_xaxes(title="月")
-            fig_gross.update_yaxes(
-                title_text="粗利（円）", tickformat=",.0f", secondary_y=False
-            )
-            fig_gross.update_yaxes(
-                title_text="粗利率（％）", tickformat=",.1f", range=[0, 100], secondary_y=True
-            )
-            fig_gross = apply_elegant_theme(
-                fig_gross, theme=st.session_state.get("ui_theme", "light")
-            )
-            render_plotly_with_spinner(
-                fig_gross, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-            )
-
-        comp_cols = st.columns(2)
-        with comp_cols[0]:
-            st.markdown("##### 商品別粗利（上位10）")
+        with gross_cols[1]:
+            st.markdown("##### 商品別粗利トップ5")
             if current_df.empty:
                 st.info("対象期間の粗利データがありません。")
             else:
                 gross_product = (
-                    current_df.groupby("商品", as_index=False)["粗利"].sum().sort_values(
-                        "粗利", ascending=False
-                    )
+                    current_df.groupby("商品", as_index=False)["粗利"].sum()
+                    .sort_values("粗利", ascending=False)
+                    .head(5)
+                    .sort_values("粗利")
                 )
-                top_gross = gross_product.head(10).sort_values("粗利")
-                fig_gross_prod = px.bar(
-                    top_gross,
+                fig_gross_product = px.bar(
+                    gross_product,
                     x="粗利",
                     y="商品",
                     orientation="h",
                     color_discrete_sequence=[ACCENT_COLOR],
                 )
-                fig_gross_prod.update_layout(
-                    height=380,
+                fig_gross_product.update_layout(
+                    height=260,
                     margin=dict(l=10, r=10, t=30, b=10),
                     xaxis_title="粗利（円）",
                     yaxis_title="商品",
                 )
-                fig_gross_prod = apply_elegant_theme(
-                    fig_gross_prod, theme=st.session_state.get("ui_theme", "light")
+                fig_gross_product = apply_elegant_theme(
+                    fig_gross_product,
+                    theme=st.session_state.get("ui_theme", "light"),
                 )
                 render_plotly_with_spinner(
-                    fig_gross_prod, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                    fig_gross_product,
+                    config=PLOTLY_CONFIG,
+                    spinner_text=SPINNER_MESSAGE,
                 )
 
-        with comp_cols[1]:
-            st.markdown("##### 粗利率の推移（上位商品）")
-            if current_df.empty:
-                st.info("粗利率を計算するデータが不足しています。")
+            st.markdown("##### 店舗別粗利")
+            if current_all_df.empty:
+                st.info("店舗別の粗利データがありません。")
             else:
-                top_products = (
-                    current_df.groupby("商品")["売上"].sum().sort_values(ascending=False).head(3).index.tolist()
+                store_gross = (
+                    current_all_df.groupby("店舗", as_index=False)["粗利"].sum()
+                    .sort_values("粗利", ascending=True)
                 )
-                history = df_sales[df_sales["商品"].isin(top_products)]
-                history = history[history["日付"] <= current_end]
-                if history.empty:
-                    st.info("粗利率の履歴がありません。")
-                else:
-                    history_monthly = (
-                        history.groupby(["月", "商品"], as_index=False)
-                        .agg(売上=("売上", "sum"), 粗利=("粗利", "sum"))
-                    )
-                    history_monthly["粗利率"] = np.where(
-                        history_monthly["売上"] > 0,
-                        history_monthly["粗利"] / history_monthly["売上"] * 100.0,
-                        np.nan,
-                    )
-                    history_monthly["month_dt"] = pd.to_datetime(
-                        history_monthly["月"], format="%Y-%m"
-                    )
-                    history_monthly = history_monthly.sort_values(["month_dt", "商品"])
-                    fig_margin = px.line(
-                        history_monthly,
-                        x="month_dt",
-                        y="粗利率",
-                        color="商品",
-                        markers=True,
-                    )
-                    fig_margin.update_layout(
-                        height=380,
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        xaxis_title="月",
-                        yaxis_title="粗利率（％）",
-                    )
-                    fig_margin = apply_elegant_theme(
-                        fig_margin, theme=st.session_state.get("ui_theme", "light")
-                    )
-                    render_plotly_with_spinner(
-                        fig_margin, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-                    )
+                fig_store_gross = px.bar(
+                    store_gross,
+                    y="店舗",
+                    x="粗利",
+                    orientation="h",
+                    color_discrete_sequence=[SUCCESS_COLOR],
+                )
+                fig_store_gross.update_layout(
+                    height=260,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title="粗利（円）",
+                    yaxis_title="店舗",
+                )
+                fig_store_gross = apply_elegant_theme(
+                    fig_store_gross,
+                    theme=st.session_state.get("ui_theme", "light"),
+                )
+                render_plotly_with_spinner(
+                    fig_store_gross,
+                    config=PLOTLY_CONFIG,
+                    spinner_text=SPINNER_MESSAGE,
+                )
 
-        st.markdown("##### 粗利明細")
-        if current_df.empty:
-            st.info("粗利明細を表示するデータがありません。")
+        st.markdown("#### 損益計算書テーブル")
+        cogs = current_sales - current_gross
+        operating_profit = current_gross - total_fixed_cost
+        pnl_rows = [
+            ("売上", current_sales, 100.0 if current_sales else 0.0),
+            (
+                "売上原価",
+                cogs,
+                (cogs / current_sales * 100.0) if current_sales else 0.0,
+            ),
+            (
+                "粗利",
+                current_gross,
+                (current_gross / current_sales * 100.0) if current_sales else 0.0,
+            ),
+            (
+                "固定費",
+                total_fixed_cost,
+                (total_fixed_cost / current_sales * 100.0) if current_sales else 0.0,
+            ),
+            (
+                "営業利益",
+                operating_profit,
+                (operating_profit / current_sales * 100.0) if current_sales else 0.0,
+            ),
+        ]
+        pnl_df = pd.DataFrame(pnl_rows, columns=["項目", "金額", "売上比率"])
+        st.dataframe(
+            pnl_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "金額": st.column_config.NumberColumn("金額", format="¥%,d"),
+                "売上比率": st.column_config.NumberColumn("売上比率", format="%.1f%%"),
+            },
+        )
+        with inventory_cols[1]:
+            st.markdown("##### SKU別構成")
+            if current_all_df.empty:
+                st.info("SKU別の在庫データがありません。")
+            else:
+                sku_inventory = (
+                    current_all_df.groupby("商品", as_index=False)["売上"].sum()
+                    .sort_values("売上", ascending=False)
+                    .head(10)
+                    .sort_values("売上")
+                )
+                sku_inventory["推定在庫"] = sku_inventory["売上"] * 0.35
+                fig_sku = px.bar(
+                    sku_inventory,
+                    x="推定在庫",
+                    y="商品",
+                    orientation="h",
+                    color_discrete_sequence=[ACCENT_COLOR],
+                )
+                fig_sku.update_layout(
+                    height=260,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title="推定在庫（円）",
+                    yaxis_title="商品",
+                )
+                fig_sku = apply_elegant_theme(
+                    fig_sku, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(
+                    fig_sku, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
+
+            st.markdown("##### 店舗別在庫")
+            if current_all_df.empty:
+                st.info("店舗別の在庫推計がありません。")
+            else:
+                store_inventory = (
+                    current_all_df.groupby("店舗", as_index=False)["売上"].sum()
+                    .sort_values("売上", ascending=True)
+                )
+                store_inventory["推定在庫"] = store_inventory["売上"] * 0.35
+                fig_store_inv = px.bar(
+                    store_inventory,
+                    y="店舗",
+                    x="推定在庫",
+                    orientation="h",
+                    color_discrete_sequence=[SUCCESS_COLOR],
+                )
+                fig_store_inv.update_layout(
+                    height=260,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis_title="推定在庫（円）",
+                    yaxis_title="店舗",
+                )
+                fig_store_inv = apply_elegant_theme(
+                    fig_store_inv, theme=st.session_state.get("ui_theme", "light")
+                )
+                render_plotly_with_spinner(
+                    fig_store_inv, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+                )
+
+        st.markdown("#### 在庫リスト＆発注推奨")
+        if current_all_df.empty:
+            st.info("在庫推奨を算出するデータがありません。")
         else:
-            gross_detail = current_df.copy()
-            gross_detail["日付"] = gross_detail["日付"].dt.strftime("%Y-%m-%d")
-            gross_cols = ["日付", "店舗", "商品", "売上", "粗利", "粗利率"]
-            st.dataframe(
-                gross_detail[gross_cols].style.format(
-                    {"売上": "¥{:,.0f}", "粗利": "¥{:,.0f}", "粗利率": "{:.1%}"}
-                ),
-                use_container_width=True,
+            reorder_df = (
+                current_all_df.groupby(["商品", "カテゴリ", "店舗"], as_index=False)[
+                    ["売上", "数量"]
+                ].sum()
             )
+            reorder_df["推定在庫"] = reorder_df["売上"] * 0.30
+            reorder_df["平均日販"] = np.where(
+                days_in_period > 0,
+                reorder_df["売上"] / days_in_period,
+                0.0,
+            )
+            reorder_df["推定日数"] = np.where(
+                reorder_df["平均日販"] > 0,
+                reorder_df["推定在庫"] / reorder_df["平均日販"],
+                np.nan,
+            )
+            reorder_df["推奨発注"] = np.where(
+                reorder_df["推定日数"] < 14,
+                reorder_df["平均日販"] * 14,
+                0.0,
+            )
+            reorder_display = reorder_df.sort_values("推定日数").head(20)
+            st.dataframe(
+                reorder_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "売上": st.column_config.NumberColumn("売上", format="¥%,d"),
+                    "推定在庫": st.column_config.NumberColumn("推定在庫", format="¥%,d"),
+                    "平均日販": st.column_config.NumberColumn("平均日販", format="¥%,d"),
+                    "推定日数": st.column_config.NumberColumn("推定日数", format="%.1f"),
+                    "推奨発注": st.column_config.NumberColumn("推奨発注", format="¥%,d"),
+                },
+            )
+    with tabs[3]:
+        st.markdown("#### 指標カード")
+        forecast_balance = cash_current + (current_gross - total_fixed_cost)
+        forecast_delta_pct = (
+            (forecast_balance - cash_current) / cash_current * 100.0
+            if cash_current
+            else None
+        )
+        cash_cards = [
+            {
+                "title": "キャッシュ残高",
+                "value": f"¥{cash_current:,.0f}",
+                "delta": format_directional_delta(cash_delta_pct),
+                "variant": "is-primary",
+                "caption": "粗利累積換算",
+            },
+            {
+                "title": "予想残高",
+                "value": f"¥{forecast_balance:,.0f}",
+                "delta": format_directional_delta(forecast_delta_pct),
+                "variant": "is-accent",
+                "caption": "粗利-固定費ベース",
+            },
+            {
+                "title": "前期比(額)",
+                "value": format_directional_delta(cash_delta_pct) or "—",
+                "delta": (
+                    f"{cash_current - cash_prev:+,.0f}円"
+                    if cash_prev
+                    else None
+                ),
+                "variant": "is-success",
+                "caption": "前期比金額",
+            },
+        ]
+        render_kpi_cards(cash_cards)
+
+        st.markdown("#### キャッシュフロー推移")
+        cash_scope = df_sales[df_sales["日付"] <= current_end].copy()
+        cash_scope = cash_scope.sort_values("日付")
+        monthly_cash = (
+            cash_scope.groupby("月", as_index=False)["粗利"].sum().sort_values("月")
+        )
+        monthly_cash["month_dt"] = pd.to_datetime(monthly_cash["月"], format="%Y-%m")
+        monthly_cash = monthly_cash[monthly_cash["month_dt"] <= current_end].tail(24)
+        monthly_cash["累積粗利"] = monthly_cash["粗利"].cumsum()
+        monthly_cash["キャッシュ残高"] = (
+            baseline_cash + monthly_cash["累積粗利"] * cash_multiplier
+        )
+        avg_fixed = total_fixed_cost / len(months_in_period) if months_in_period else 0.0
+        monthly_cash["予測残高"] = monthly_cash["キャッシュ残高"] + (
+            monthly_cash["粗利"] - avg_fixed
+        )
+        fig_cash = go.Figure()
+        fig_cash.add_trace(
+            go.Scatter(
+                x=monthly_cash["month_dt"],
+                y=monthly_cash["キャッシュ残高"],
+                name="キャッシュ残高",
+                mode="lines+markers",
+                line=dict(color=PRIMARY_COLOR, width=3),
+            )
+        )
+        fig_cash.add_trace(
+            go.Scatter(
+                x=monthly_cash["month_dt"],
+                y=monthly_cash["予測残高"],
+                name="予測残高",
+                mode="lines",
+                line=dict(color=ACCENT_COLOR, dash="dot", width=2),
+            )
+        )
+        fig_cash.update_layout(
+            height=420,
+            margin=dict(l=10, r=10, t=40, b=10),
+            xaxis_title="月",
+            yaxis_title="残高（円）",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
+        )
+        fig_cash = apply_elegant_theme(
+            fig_cash, theme=st.session_state.get("ui_theme", "light")
+        )
+        render_plotly_with_spinner(
+            fig_cash, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
+        st.markdown("#### 入出金の構成")
+        composition_df = pd.DataFrame(
+            {
+                "区分": ["入金", "原価", "固定費"],
+                "金額": [
+                    current_sales,
+                    current_sales - current_gross,
+                    total_fixed_cost,
+                ],
+            }
+        )
+        fig_comp = px.bar(
+            composition_df,
+            x="区分",
+            y="金額",
+            color="区分",
+            color_discrete_sequence=[PRIMARY_COLOR, ACCENT_COLOR, WARNING_COLOR],
+        )
+        fig_comp.update_layout(
+            height=320,
+            margin=dict(l=10, r=10, t=30, b=10),
+            yaxis_title="金額（円）",
+            showlegend=False,
+        )
+        fig_comp = apply_elegant_theme(
+            fig_comp, theme=st.session_state.get("ui_theme", "light")
+        )
+        render_plotly_with_spinner(
+            fig_comp, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+        )
+
+        st.markdown("#### 明細テーブル")
+        cash_detail = current_df.copy()
+        if cash_detail.empty:
+            st.info("資金明細を表示するデータがありません。")
+        else:
+            cash_detail["日付"] = cash_detail["日付"].dt.strftime("%Y-%m-%d")
+            cash_cols = ["日付", "店舗", "商品", "売上", "粗利"]
+            st.dataframe(
+                cash_detail[cash_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "売上": st.column_config.NumberColumn("売上", format="¥%,d"),
+                    "粗利": st.column_config.NumberColumn("粗利", format="¥%,d"),
+                },
+            )
+            csv_cash = cash_detail[cash_cols].to_csv(index=False).encode("utf-8-sig")
             st.download_button(
-                "粗利明細CSV",
-                data=gross_detail[gross_cols]
-                .to_csv(index=False)
-                .encode("utf-8-sig"),
-                file_name=f"gross_detail_{anchor_month}.csv",
+                "資金明細CSV",
+                data=csv_cash,
+                file_name=f"cash_transactions_{anchor_month}.csv",
                 mime="text/csv",
             )
 
-    with tabs[2]:
-        st.markdown("#### 在庫ヒートマップ（カテゴリ×店舗）")
-        inventory_source = current_all_df.copy()
-        if inventory_source.empty:
-            st.info("在庫分析を行うデータがありません。")
-        else:
-            heat_df = (
-                inventory_source.groupby(["店舗", "カテゴリ"], as_index=False)["売上"].sum()
-            )
-            pivot = heat_df.pivot(index="店舗", columns="カテゴリ", values="売上").fillna(0.0)
-            fig_heat = go.Figure(
-                data=go.Heatmap(
-                    z=pivot.values,
-                    x=pivot.columns.astype(str),
-                    y=pivot.index.astype(str),
-                    colorscale="Blues",
-                    colorbar=dict(title="金額（円）"),
-                )
-            )
-            fig_heat.update_layout(
-                height=420,
-                margin=dict(l=10, r=20, t=40, b=60),
-                xaxis_title="カテゴリ",
-                yaxis_title="店舗",
-            )
-            fig_heat = apply_elegant_theme(
-                fig_heat, theme=st.session_state.get("ui_theme", "light")
-            )
-            render_plotly_with_spinner(
-                fig_heat, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-            )
-
-            inv_cols = st.columns(2)
-            with inv_cols[0]:
-                st.markdown("##### カテゴリ別構成")
-                category_summary = (
-                    heat_df.groupby("カテゴリ", as_index=False)["売上"].sum().sort_values(
-                        "売上", ascending=False
-                    )
-                )
-                if category_summary.empty:
-                    st.info("カテゴリ別の集計がありません。")
-                else:
-                    fig_cat = px.bar(
-                        category_summary,
-                        x="売上",
-                        y="カテゴリ",
-                        orientation="h",
-                        color_discrete_sequence=[PRIMARY_COLOR],
-                    )
-                    fig_cat.update_layout(
-                        height=360,
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        xaxis_title="金額（円）",
-                        yaxis_title="カテゴリ",
-                    )
-                    fig_cat = apply_elegant_theme(
-                        fig_cat, theme=st.session_state.get("ui_theme", "light")
-                    )
-                    render_plotly_with_spinner(
-                        fig_cat, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-                    )
-
-            with inv_cols[1]:
-                st.markdown("##### 商品別在庫（推定）")
-                product_summary = (
-                    inventory_source.groupby("商品", as_index=False)["売上"].sum().sort_values(
-                        "売上", ascending=False
-                    )
-                )
-                if product_summary.empty:
-                    st.info("商品別の在庫データがありません。")
-                else:
-                    top_inv = product_summary.head(10).sort_values("売上")
-                    fig_inv = px.bar(
-                        top_inv,
-                        x="売上",
-                        y="商品",
-                        orientation="h",
-                        color_discrete_sequence=[ACCENT_COLOR],
-                    )
-                    fig_inv.update_layout(
-                        height=360,
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        xaxis_title="金額（円）",
-                        yaxis_title="商品",
-                    )
-                    fig_inv = apply_elegant_theme(
-                        fig_inv, theme=st.session_state.get("ui_theme", "light")
-                    )
-                    render_plotly_with_spinner(
-                        fig_inv, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-                    )
-
-            st.markdown("##### 在庫明細（推定）")
-            detail_inv = heat_df.copy()
-            detail_inv["構成比"] = np.where(
-                detail_inv["売上"].sum() > 0,
-                detail_inv["売上"] / detail_inv["売上"].sum() * 100.0,
-                0.0,
-            )
-            st.dataframe(
-                detail_inv.rename(
-                    columns={"売上": "金額（円）", "構成比": "構成比（％）"}
-                ).style.format(
-                    {"金額（円）": "¥{:,.0f}", "構成比（％）": "{:.1f}%"}
-                ),
-                use_container_width=True,
-            )
-
-    with tabs[3]:
-        st.markdown("#### 固定費内訳")
-        if expense_long.empty:
-            st.info("固定費データが読み込まれていません。設定ページから取り込みを行ってください。")
-        else:
-            expense_recent = (
-                expense_long.groupby(["month", "category"], as_index=False)["amount"].sum()
-            )
-            pivot_cost = (
-                expense_recent.pivot(index="month", columns="category", values="amount")
-                .fillna(0.0)
-                .sort_index()
-                .tail(12)
-            )
-            fig_cost = go.Figure()
-            for cat in pivot_cost.columns:
-                fig_cost.add_trace(
-                    go.Bar(
-                        x=pivot_cost.index,
-                        y=pivot_cost[cat],
-                        name=str(cat),
-                    )
-                )
-            total_series = pivot_cost.sum(axis=1)
-            target_cost = total_series.mean() * 0.95 if not total_series.empty else 0.0
-            if target_cost:
-                fig_cost.add_trace(
-                    go.Scatter(
-                        x=pivot_cost.index,
-                        y=[target_cost] * len(pivot_cost.index),
-                        name="固定費目標",
-                        mode="lines",
-                        line=dict(color=ERROR_COLOR, dash="dash"),
-                    )
-                )
-            fig_cost.update_layout(
-                barmode="stack",
-                height=420,
-                margin=dict(l=10, r=10, t=40, b=10),
-                xaxis_title="月",
-                yaxis_title="固定費（円）",
-            )
-            fig_cost = apply_elegant_theme(
-                fig_cost, theme=st.session_state.get("ui_theme", "light")
-            )
-            render_plotly_with_spinner(
-                fig_cost, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-            )
-
-        st.markdown("#### 損益シミュレーション")
-        target_sales = prev_sales * 1.05 if prev_sales else current_sales
-        gauge_max = max(target_sales * 1.2, current_sales * 1.1, 1.0)
-        gauge_fig = go.Figure(
-            go.Indicator(
-                mode="gauge+number+delta",
-                value=current_sales,
-                number={"valueformat": ",.0f", "suffix": " 円"},
-                delta={
-                    "reference": target_sales,
-                    "valueformat": ",.0f",
-                    "increasing": {"color": SUCCESS_COLOR},
-                    "decreasing": {"color": ERROR_COLOR},
-                },
-                gauge={
-                    "axis": {"range": [0, gauge_max]},
-                    "bar": {"color": SUCCESS_COLOR},
-                    "steps": [
-                        {
-                            "range": [0, min(target_sales, gauge_max)],
-                            "color": lighten(SUCCESS_COLOR, 0.65),
-                        },
-                        {
-                            "range": [min(target_sales, gauge_max), gauge_max],
-                            "color": lighten(ERROR_COLOR, 0.85),
-                        },
-                    ],
-                    "threshold": {
-                        "line": {"color": ACCENT_COLOR, "width": 4},
-                        "thickness": 0.75,
-                        "value": target_sales,
-                    },
-                },
-                title={"text": "売上進捗（目標比）"},
-            )
-        )
-        gauge_fig.update_layout(height=260, margin=dict(l=10, r=10, t=0, b=0))
-        gauge_fig = apply_elegant_theme(
-            gauge_fig, theme=st.session_state.get("ui_theme", "light")
-        )
-        render_plotly_with_spinner(
-            gauge_fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-        )
-
-        st.markdown("#### 固定費明細")
-        if expense_period.empty:
-            st.info("選択期間の固定費データがありません。")
-        else:
-            expense_table = (
-                expense_period.groupby("category", as_index=False)["amount"].sum().sort_values(
-                    "amount", ascending=False
-                )
-            )
-            expense_table["割合"] = np.where(
-                total_fixed_cost > 0,
-                expense_table["amount"] / total_fixed_cost * 100.0,
-                0.0,
-            )
-            st.dataframe(
-                expense_table.rename(
-                    columns={"category": "費目", "amount": "金額（円）", "割合": "構成比（％）"}
-                ).style.format(
-                    {"金額（円）": "¥{:,.0f}", "構成比（％）": "{:.1f}%"}
-                ),
-                use_container_width=True,
-            )
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            const target = {json.dumps(active_tab, ensure_ascii=False)};
+            const doc = window.parent.document;
+            function activate(attempt) {{
+                const tabs = doc.querySelectorAll('button[role="tab"]');
+                for (const tab of tabs) {{
+                    if (tab.textContent.trim() === target) {{
+                        tab.click();
+                        tab.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                        return;
+                    }}
+                }}
+                if (attempt < 10) {{
+                    setTimeout(() => activate(attempt + 1), 150);
+                }}
+            }}
+            activate(0);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 
 # 3) ダッシュボード
 elif page == "ダッシュボード":
