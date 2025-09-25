@@ -896,36 +896,37 @@ def render_metric_cards(
                     f"<span class='mck-metric-card__info' aria-hidden='true'>{info_symbol}</span>"
                 )
             class_attr = " ".join(classes)
-            col.markdown(
-                textwrap.dedent(
-                    """
-                    <div class="{classes}" role="group"{tooltip}{tab}{aria}>
-                      <div class="mck-metric-card__header">
-                        {icon}
-                        <div class="mck-metric-card__title-group">
-                          <div class="mck-metric-card__title">{title}</div>
-                          {subtitle}
+            with col:
+                st.markdown(
+                    textwrap.dedent(
+                        """
+                        <div class="{classes}" role="group"{tooltip}{tab}{aria}>
+                          <div class="mck-metric-card__header">
+                            {icon}
+                            <div class="mck-metric-card__title-group">
+                              <div class="mck-metric-card__title">{title}</div>
+                              {subtitle}
+                            </div>
+                            {info}
+                          </div>
+                          <div class="mck-metric-card__value">{value}</div>
+                          {footnote}
                         </div>
-                        {info}
-                      </div>
-                      <div class="mck-metric-card__value">{value}</div>
-                      {footnote}
-                    </div>
-                    """
-                ).format(
-                    classes=class_attr,
-                    tooltip=tooltip_attr,
-                    tab=tab_attr,
-                    aria=aria_attr,
-                    icon=icon_block,
-                    title=title,
-                    subtitle=subtitle_html,
-                    info=info_html,
-                    value=value,
-                    footnote=footnote_html,
-                ),
-                unsafe_allow_html=True,
-            )
+                        """
+                    ).format(
+                        classes=class_attr,
+                        tooltip=tooltip_attr,
+                        tab=tab_attr,
+                        aria=aria_attr,
+                        icon=icon_block,
+                        title=title,
+                        subtitle=subtitle_html,
+                        info=info_html,
+                        value=value,
+                        footnote=footnote_html,
+                    ),
+                    unsafe_allow_html=True,
+                )
 
 
 def render_metric_bar_chart(metrics_list: List[Dict[str, object]]) -> None:
