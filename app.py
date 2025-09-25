@@ -6474,16 +6474,18 @@ def render_process_step_bar(page_key: str) -> None:
         aria_label = html.escape(f"{step_def['label']} - {step_def['hint']}", quote=True)
         indicator = step_def.get("icon") or str(idx + 1)
         items_html.append(
-            """
-            <div class="mck-flow-stepper__item" data-state="{state}" role="listitem" aria-label="{aria}">
-              <span class="mck-flow-stepper__indicator" aria-hidden="true">{icon}</span>
-              <div class="mck-flow-stepper__label">
-                <span class="jp">{label}</span>
-                <span class="en">{label_en}</span>
-              </div>
-              <p class="mck-flow-stepper__hint">{hint}</p>
-            </div>
-            """.format(
+            textwrap.dedent(
+                """\
+                <div class="mck-flow-stepper__item" data-state="{state}" role="listitem" aria-label="{aria}">
+                  <span class="mck-flow-stepper__indicator" aria-hidden="true">{icon}</span>
+                  <div class="mck-flow-stepper__label">
+                    <span class="jp">{label}</span>
+                    <span class="en">{label_en}</span>
+                  </div>
+                  <p class="mck-flow-stepper__hint">{hint}</p>
+                </div>
+                """
+            ).format(
                 state=state,
                 aria=aria_label,
                 icon=html.escape(str(indicator)),
@@ -6499,17 +6501,21 @@ def render_process_step_bar(page_key: str) -> None:
                 else "pending"
             )
             items_html.append(
-                """
-                <div class="mck-flow-stepper__connector" data-state="{state}" aria-hidden="true"></div>
-                """.format(state=connector_state)
+                textwrap.dedent(
+                    """\
+                    <div class="mck-flow-stepper__connector" data-state="{state}" aria-hidden="true"></div>
+                    """
+                ).format(state=connector_state)
             )
 
     st.markdown(
-        """
-        <div class="mck-flow-stepper" role="list" aria-label="主要作業ステップ">
-          {items}
-        </div>
-        """.format(items="".join(items_html)),
+        textwrap.dedent(
+            """\
+            <div class="mck-flow-stepper" role="list" aria-label="主要作業ステップ">
+              {items}
+            </div>
+            """
+        ).format(items="".join(items_html)),
         unsafe_allow_html=True,
     )
 
