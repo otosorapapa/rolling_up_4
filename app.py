@@ -3373,12 +3373,16 @@ def render_app_hero():
         if not value and not label:
             continue
         stat_items.append(
-            """
-            <li class="mck-hero__stat">
-                <span class="mck-hero__stat-value">{value}</span>
-                <span class="mck-hero__stat-label">{label}</span>
-            </li>
-            """.format(value=html.escape(value), label=html.escape(label))
+            textwrap.dedent(
+                """
+                <li class="mck-hero__stat">
+                    <span class="mck-hero__stat-value">{value}</span>
+                    <span class="mck-hero__stat-label">{label}</span>
+                </li>
+                """
+            )
+            .format(value=html.escape(value), label=html.escape(label))
+            .strip()
         )
 
     highlights = [
@@ -3415,19 +3419,23 @@ def render_app_hero():
         if not title_text and not desc_text:
             continue
         highlight_items.append(
-            """
-            <li class="mck-hero__highlight">
-                <span class="mck-hero__highlight-icon">{icon}</span>
-                <div>
-                    <p class="mck-hero__highlight-title">{title}</p>
-                    <p class="mck-hero__highlight-desc">{description}</p>
-                </div>
-            </li>
-            """.format(
+            textwrap.dedent(
+                """
+                <li class="mck-hero__highlight">
+                    <span class="mck-hero__highlight-icon">{icon}</span>
+                    <div>
+                        <p class="mck-hero__highlight-title">{title}</p>
+                        <p class="mck-hero__highlight-desc">{description}</p>
+                    </div>
+                </li>
+                """
+            )
+            .format(
                 icon=html.escape(icon_text),
                 title=html.escape(title_text),
                 description=html.escape(desc_text),
             )
+            .strip()
         )
 
     primary_label = t("header.actions.primary.label", default="サンプルデータで試す")
@@ -3490,57 +3498,69 @@ def render_app_hero():
         )
         for label, desc in badge_defs
     )
-    usage_html = """
-    <div class="mck-hero__usage" id="hero-usage">
-        <h2 id="hero-howto">使い方の流れ</h2>
-        <ol>{usage_items}</ol>
-        <div class="mck-hero__assumption">
-            <h3>データ前提条件</h3>
-            <ul>{assumption_items}</ul>
-        </div>
-        <div class="glossary-cloud" aria-label="主要な専門用語">
-            {badge_html}
-        </div>
-        <p class="mck-hero__hint">詳細なFAQは本ページ下部の「FAQ / 用語集」リンクから確認できます。</p>
-    </div>
-    """.format(
-        usage_items=usage_items,
-        assumption_items=assumption_items,
-        badge_html=badge_html,
+    usage_html = (
+        textwrap.dedent(
+            """
+            <div class="mck-hero__usage" id="hero-usage">
+                <h2 id="hero-howto">使い方の流れ</h2>
+                <ol>{usage_items}</ol>
+                <div class="mck-hero__assumption">
+                    <h3>データ前提条件</h3>
+                    <ul>{assumption_items}</ul>
+                </div>
+                <div class="glossary-cloud" aria-label="主要な専門用語">
+                    {badge_html}
+                </div>
+                <p class="mck-hero__hint">詳細なFAQは本ページ下部の「FAQ / 用語集」リンクから確認できます。</p>
+            </div>
+            """
+        )
+        .format(
+            usage_items=usage_items,
+            assumption_items=assumption_items,
+            badge_html=badge_html,
+        )
+        .strip()
     )
 
-    hero_html = """
-    <section class="mck-hero" aria-labelledby="hero-title">
-        <div class="mck-hero__grid">
-            <div class="mck-hero__content">
-                <div class="mck-hero__eyebrow">{eyebrow}</div>
-                <h1 id="hero-title">{title}</h1>
-                <p class="mck-hero__lead">{description}</p>
-                {stats}
-                <div class="mck-hero__actions" role="group">
-                    <a class="mck-button mck-button--primary" href="{primary_href}" title="{primary_hint}">{primary_label}</a>
-                    <a class="mck-button mck-button--ghost" href="{secondary_href}" title="{secondary_hint}">{secondary_label}</a>
-                    {note}
+    hero_html = (
+        textwrap.dedent(
+            """
+            <section class="mck-hero" aria-labelledby="hero-title">
+                <div class="mck-hero__grid">
+                    <div class="mck-hero__content">
+                        <div class="mck-hero__eyebrow">{eyebrow}</div>
+                        <h1 id="hero-title">{title}</h1>
+                        <p class="mck-hero__lead">{description}</p>
+                        {stats}
+                        <div class="mck-hero__actions" role="group">
+                            <a class="mck-button mck-button--primary" href="{primary_href}" title="{primary_hint}">{primary_label}</a>
+                            <a class="mck-button mck-button--ghost" href="{secondary_href}" title="{secondary_hint}">{secondary_label}</a>
+                            {note}
+                        </div>
+                        {highlights}
+                    </div>
                 </div>
-                {highlights}
-            </div>
-        </div>
-    </section>
-    {usage}
-    """.format(
-        eyebrow=eyebrow,
-        title=title,
-        description=description,
-        stats=stats_html,
-        primary_href=html.escape(primary_href, quote=True),
-        primary_hint=html.escape(primary_hint, quote=True),
-        primary_label=html.escape(primary_label),
-        secondary_href=html.escape(secondary_href, quote=True),
-        secondary_hint=html.escape(secondary_hint, quote=True),
-        secondary_label=html.escape(secondary_label),
-        note=note_html,
-        highlights=highlights_html,
-        usage=usage_html,
+            </section>
+            {usage}
+            """
+        )
+        .format(
+            eyebrow=eyebrow,
+            title=title,
+            description=description,
+            stats=stats_html,
+            primary_href=html.escape(primary_href, quote=True),
+            primary_hint=html.escape(primary_hint, quote=True),
+            primary_label=html.escape(primary_label),
+            secondary_href=html.escape(secondary_href, quote=True),
+            secondary_hint=html.escape(secondary_hint, quote=True),
+            secondary_label=html.escape(secondary_label),
+            note=note_html,
+            highlights=highlights_html,
+            usage=usage_html,
+        )
+        .strip()
     )
 
     st.markdown(hero_html, unsafe_allow_html=True)
