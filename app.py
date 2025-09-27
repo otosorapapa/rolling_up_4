@@ -10133,7 +10133,12 @@ elif page == "ランキング":
         snapshot = snapshot.merge(hierarchy_df, on="product_code", how="left")
     snapshot["department"] = snapshot.get("department", "その他").fillna("その他")
     snapshot["category"] = snapshot.get("category", "未分類").fillna("未分類")
-    snapshot["product_name"] = snapshot["product_name"].fillna(snapshot["product_code"])
+    if "product_name" in snapshot.columns:
+        snapshot["product_name"] = snapshot["product_name"].fillna(
+            snapshot["product_code"]
+        )
+    else:
+        snapshot["product_name"] = snapshot["product_code"]
     snapshot["gross_est"] = (
         snapshot["year_sum"] * gross_ratio if gross_ratio > 0 else np.nan
     )
@@ -10626,7 +10631,12 @@ elif page == "比較ビュー":
     end_m = sidebar_state.get("compare_end_month") or latest_month
 
     snapshot = latest_yearsum_snapshot(year_df, end_m)
-    snapshot["display_name"] = snapshot["product_name"].fillna(snapshot["product_code"])
+    product_name_series = (
+        snapshot["product_name"]
+        if "product_name" in snapshot.columns
+        else snapshot["product_code"]
+    )
+    snapshot["display_name"] = product_name_series.fillna(snapshot["product_code"])
 
     search = st.text_input("検索ボックス", "")
     if search:
