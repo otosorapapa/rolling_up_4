@@ -7851,11 +7851,11 @@ def import_section(
             )
             .strip()
         )
-        st.markdown(section_html, unsafe_allow_html=True)
+        st.html(section_html)
         inner = st.container()
         with inner:
             yield
-        st.markdown("</div></section>", unsafe_allow_html=True)
+        st.html("</div></section>")
 
 
 def build_import_progress_steps() -> tuple[List[Dict[str, object]], Dict[str, str]]:
