@@ -33,3 +33,7 @@ streamlit run app.py
 
 ## テスト
 `pytest -q`
+
+## ドキュメント
+- [情報設計・導線再設計ドキュメント](docs/information_architecture.md)
+- [UIユーザビリティ評価まとめ](docs/ui_usability_review.md)
