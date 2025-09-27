@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter, sleep
 from typing import Optional, List, Dict, Tuple, Iterable, Callable, Any
 
 import streamlit as st
@@ -202,6 +203,18 @@ def _derive_category_label(name: str) -> str:
     if trimmed:
         return trimmed
     return cleaned[:6] or "未分類"
+
+
+def debounce_render(key: str, delay: float = 0.15) -> None:
+    """Ensure renders for ``key`` are throttled by ``delay`` seconds."""
+
+    state_key = f"_{key}_last_render"
+    now = perf_counter()
+    last = st.session_state.get(state_key, 0.0)
+    elapsed = now - last
+    if elapsed < delay:
+        sleep(delay - elapsed)
+    st.session_state[state_key] = perf_counter()
 
 
 def _derive_department_label(
@@ -11569,8 +11582,6 @@ elif page == "比較ビュー":
     )
     high0 = int(band_params_initial.get("high_amount", max_amount))
 
-    if "compare_details_open" not in st.session_state:
-        st.session_state.compare_details_open = False
     if "compare_sensitivity" not in st.session_state:
         st.session_state.compare_sensitivity = 0.5
     if "compare_z_threshold" not in st.session_state:
@@ -11635,65 +11646,122 @@ elif page == "比較ビュー":
         else:
             band_params = {"low_amount": low0, "high_amount": high0}
 
+
     st.markdown(
         """
 <style>
 .compare-shell { margin-top: 0.75rem; }
 .compare-grid { display: grid; gap: 1.25rem; }
-.compare-grid__toolbar { grid-area: toolbar; }
 .compare-grid__chart { grid-area: chart; }
-.compare-grid__advanced { grid-area: advanced; }
 @media (min-width: 1200px) {
   .compare-grid {
-    grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-areas:
-      "toolbar toolbar"
-      "chart advanced";
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "chart";
   }
-  .compare-grid__advanced { position: sticky; top: 72px; }
 }
-@media (max-width: 1199px) {
-  .compare-grid { grid-template-areas: "toolbar" "chart" "advanced"; }
+.chart-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  row-gap: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--primary-rgb,11,31,59),0.16);
+  background: var(--panel,#ffffff);
+  box-shadow: 0 16px 32px rgba(var(--primary-rgb,11,31,59),0.08);
+  padding: 1rem 1.15rem 1.25rem;
 }
-.compare-toolbar {
+.chart-card .chart-body {
+  position: relative;
+  padding-top: 0.25rem;
+}
+.chart-toolbar {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
-  align-items: flex-end;
-  border: 1px solid rgba(var(--primary-rgb,11,31,59),0.18);
-  background: rgba(var(--surface-rgb,255,255,255),0.92);
-  backdrop-filter: blur(12px);
-  border-radius: 16px;
-  padding: 0.75rem 1rem;
-  min-height: 48px;
-  box-shadow: 0 18px 32px rgba(var(--primary-rgb,11,31,59),0.08);
+  margin: -0.35rem -0.55rem 0;
+  padding: 0.65rem 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--primary-rgb,11,31,59),0.16);
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 26px rgba(var(--primary-rgb,11,31,59),0.08);
 }
-.compare-toolbar .stColumns { gap: 0.75rem; }
-.compare-toolbar .stColumn { min-width: 220px; }
-.compare-toolbar .toolbar-actions { margin-left: auto; min-width: auto; }
-.compare-toolbar .stSlider, .compare-toolbar .stRadio { margin-bottom: 0 !important; }
-.compare-toolbar .toolbar-control { position: relative; display: flex; flex-direction: column; gap: 0.35rem; }
-.compare-toolbar .toolbar-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-weight: 600; font-size: 0.95rem; }
-.compare-toolbar .value-badge { background: rgba(var(--accent-rgb,30,136,229),0.12); color: var(--primary,#0B1F3B); border-radius: 999px; padding: 0.1rem 0.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.compare-toolbar button[data-testid="baseButton-secondary"], .compare-toolbar button[kind="secondary"] { border-radius: 999px; }
+.chart-toolbar .stColumns {
+  gap: 0.75rem;
+  width: 100%;
+}
+.chart-toolbar .stColumn {
+  flex: 1 1 260px;
+  min-width: 240px;
+  max-width: 320px;
+}
+.chart-toolbar .toolbar-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.chart-toolbar .toolbar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink,var(--primary,#0B1F3B));
+}
+.chart-toolbar .value-badge {
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  background: rgba(var(--accent-rgb,30,136,229),0.16);
+  color: var(--primary,#0B1F3B);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chart-toolbar .stSlider,
+.chart-toolbar .stRadio,
+.chart-toolbar .stNumberInput,
+.chart-toolbar .stSelectbox,
+.chart-toolbar .stTextInput {
+  margin-bottom: 0 !important;
+}
+.chart-accordion {
+  margin-top: 0.35rem;
+}
+.chart-accordion .stExpander {
+  border: 1px solid rgba(var(--primary-rgb,11,31,59),0.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 10px 24px rgba(var(--primary-rgb,11,31,59),0.08);
+}
+.chart-accordion .stExpander .streamlit-expanderHeader {
+  font-weight: 600;
+  color: var(--ink,var(--primary,#0B1F3B));
+}
+@media (max-width: 1023px) {
+  .chart-toolbar { top: 0.5rem; }
+}
 @media (max-width: 767px) {
-  .compare-toolbar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.75rem; }
-  .compare-toolbar .stColumns { flex-wrap: nowrap; }
-  .compare-toolbar .stColumn { flex: 0 0 auto; min-width: 240px; }
-}
-.compare-grid__chart .chart-surface { border: 1px solid rgba(var(--primary-rgb,11,31,59),0.16); border-radius: 16px; background: var(--panel,#ffffff); padding: 1rem; box-shadow: 0 12px 28px rgba(var(--primary-rgb,11,31,59),0.07); }
-.compare-grid__advanced { transition: max-height 0.3s ease; }
-.compare-grid__advanced[data-open="false"] { max-height: 0; overflow: hidden; }
-@media (min-width: 1200px) {
-  .compare-grid__advanced { max-height: none !important; display: block !important; }
-}
-.advanced-panel { border: 1px solid rgba(var(--primary-rgb,11,31,59),0.16); border-radius: 16px; background: var(--panel,#ffffff); padding: 1rem 1.1rem; box-shadow: 0 12px 24px rgba(var(--primary-rgb,11,31,59),0.08); }
-.advanced-panel h4 { margin: 0 0 0.6rem; font-size: 0.95rem; font-weight: 600; color: var(--primary,#0B1F3B); }
-.advanced-section + .advanced-section { margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid rgba(var(--primary-rgb,11,31,59),0.08); }
-.advanced-panel .stRadio, .advanced-panel .stCheckbox, .advanced-panel .stSlider, .advanced-panel .stSelectbox, .advanced-panel .stNumberInput, .advanced-panel .stTextInput { margin-bottom: 0.6rem !important; }
-@media (max-width: 1199px) {
-  .compare-grid__advanced { border-radius: 16px; background: rgba(var(--surface-rgb,255,255,255),0.96); box-shadow: 0 10px 24px rgba(var(--primary-rgb,11,31,59),0.12); }
+  .chart-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.6rem;
+    padding-right: 0.6rem;
+  }
+  .chart-toolbar .stColumns {
+    flex-wrap: nowrap;
+  }
+  .chart-toolbar .stColumn {
+    flex: 0 0 240px;
+    min-width: 240px;
+  }
+  .chart-toolbar::after {
+    content: "";
+    flex: 0 0 0.5rem;
+  }
 }
 </style>
         """,
@@ -11702,10 +11770,11 @@ elif page == "比較ビュー":
 
     st.markdown('<section class="compare-shell" id="line-compare">', unsafe_allow_html=True)
     st.markdown('<div class="compare-grid">', unsafe_allow_html=True)
+    st.markdown('<div class="compare-grid__chart">', unsafe_allow_html=True)
+    st.markdown('<section class="chart-card" aria-label="メインチャート設定カード">', unsafe_allow_html=True)
 
-    st.markdown('<div class="compare-grid__toolbar">', unsafe_allow_html=True)
-    st.markdown('<div class="compare-toolbar" role="group" aria-label="主要設定">', unsafe_allow_html=True)
-    toolbar_cols = st.columns([1, 1, 1, 1, 0.4], gap="medium")
+    st.markdown('<div class="chart-toolbar" role="group" aria-label="主要設定">', unsafe_allow_html=True)
+    toolbar_cols = st.columns(4, gap="small")
 
     def _format_float(value: float, digits: int = 2) -> str:
         return f"{value:.{digits}f}"
@@ -11723,7 +11792,7 @@ elif page == "比較ビュー":
             label_visibility="collapsed",
         )
         header.markdown(
-            f'<div class="toolbar-header">形状抽出の感度<span class="value-badge">{_format_float(sens)}</span></div>',
+            f'<div class="toolbar-label">形状抽出の感度<span class="value-badge">{_format_float(sens)}</span></div>',
             unsafe_allow_html=True,
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -11741,7 +11810,7 @@ elif page == "比較ビュー":
             label_visibility="collapsed",
         )
         header.markdown(
-            f'<div class="toolbar-header">急勾配 zスコア<span class="value-badge">{_format_float(z_thr, 2)}</span></div>',
+            f'<div class="toolbar-label">急勾配 zスコア<span class="value-badge">{_format_float(z_thr, 2)}</span></div>',
             unsafe_allow_html=True,
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -11757,7 +11826,7 @@ elif page == "比較ビュー":
             label_visibility="collapsed",
         )
         header.markdown(
-            f'<div class="toolbar-header">形状抽出<span class="value-badge">{html.escape(shape_pick.replace("（", "").replace("）", ""))}</span></div>',
+            f'<div class="toolbar-label">形状抽出<span class="value-badge">{html.escape(shape_pick.replace("（", "").replace("）", ""))}</span></div>',
             unsafe_allow_html=True,
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -11784,7 +11853,7 @@ elif page == "比較ビュー":
         else:
             badge = "設定なし"
         header.markdown(
-            f'<div class="toolbar-header">金額レンジ<span class="value-badge">{badge}</span></div>',
+            f'<div class="toolbar-label">金額レンジ<span class="value-badge">{badge}</span></div>',
             unsafe_allow_html=True,
         )
         if band_mode != "金額指定":
@@ -11793,266 +11862,242 @@ elif page == "比較ビュー":
             st.caption("対象データがありません。")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with toolbar_cols[4]:
-        st.markdown('<div class="toolbar-control toolbar-actions">', unsafe_allow_html=True)
-        toggle_label = "詳細設定を閉じる" if st.session_state.compare_details_open else "詳細設定"
-        if st.button(toggle_label, key="compare_details_toggle", help="表示項目を追加で調整"):
-            st.session_state.compare_details_open = not st.session_state.compare_details_open
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    details_open = st.session_state.compare_details_open
+    chart_body_placeholder = st.container()
 
-    st.markdown(
-        f'<div class="compare-grid__advanced" data-open="{str(details_open).lower()}">',
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="advanced-panel" role="region" aria-label="詳細設定">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-accordion">', unsafe_allow_html=True)
+    with st.expander("詳細設定", expanded=False, key="compare_details_panel"):
+        st.markdown("#### 表示")
+        display_cols = st.columns(2)
+        with display_cols[0]:
+            period = st.radio(
+                "期間",
+                ["12ヶ月", "24ヶ月", "36ヶ月"],
+                horizontal=True,
+                index=["12ヶ月", "24ヶ月", "36ヶ月"].index(st.session_state.get("compare_period", "24ヶ月")),
+                key="compare_period",
+            )
+            op_mode = st.radio(
+                "操作",
+                ["パン", "ズーム", "選択"],
+                horizontal=True,
+                index=["パン", "ズーム", "選択"].index(st.session_state.get("compare_op_mode", "パン")),
+                key="compare_op_mode",
+            )
+        with display_cols[1]:
+            node_mode = st.radio(
+                "ノード表示",
+                ["自動", "主要ノードのみ", "すべて", "非表示"],
+                horizontal=True,
+                index=["自動", "主要ノードのみ", "すべて", "非表示"].index(st.session_state.get("compare_node_mode", "自動")),
+                key="compare_node_mode",
+            )
+            hover_mode = st.radio(
+                "ホバー",
+                ["個別", "同月まとめ"],
+                horizontal=True,
+                index=["個別", "同月まとめ"].index(st.session_state.get("compare_hover_mode", "個別")),
+                key="compare_hover_mode",
+            )
+        peak_on = st.checkbox(
+            "ピーク表示",
+            value=st.session_state.get("compare_peak_on", False),
+            key="compare_peak_on",
+        )
 
-    st.markdown('<div class="advanced-section">', unsafe_allow_html=True)
-    st.markdown('<h4>表示</h4>', unsafe_allow_html=True)
-    display_cols = st.columns(2)
-    with display_cols[0]:
-        period = st.radio(
-            "期間",
-            ["12ヶ月", "24ヶ月", "36ヶ月"],
+        st.markdown("#### 抽出条件")
+        band_options = ["金額指定", "商品指定(2)", "パーセンタイル", "順位帯", "ターゲット近傍"]
+        band_mode = st.radio(
+            "バンド",
+            band_options,
             horizontal=True,
-            index=["12ヶ月", "24ヶ月", "36ヶ月"].index(st.session_state.get("compare_period", "24ヶ月")),
-            key="compare_period",
+            index=band_options.index(band_mode) if band_mode in band_options else 0,
+            key="compare_band_mode",
         )
-        op_mode = st.radio(
-            "操作",
-            ["パン", "ズーム", "選択"],
-            horizontal=True,
-            index=["パン", "ズーム", "選択"].index(st.session_state.get("compare_op_mode", "パン")),
-            key="compare_op_mode",
-        )
-    with display_cols[1]:
-        node_mode = st.radio(
-            "ノード表示",
-            ["自動", "主要ノードのみ", "すべて", "非表示"],
-            horizontal=True,
-            index=["自動", "主要ノードのみ", "すべて", "非表示"].index(st.session_state.get("compare_node_mode", "自動")),
-            key="compare_node_mode",
-        )
-        hover_mode = st.radio(
-            "ホバー",
-            ["個別", "同月まとめ"],
-            horizontal=True,
-            index=["個別", "同月まとめ"].index(st.session_state.get("compare_hover_mode", "個別")),
-            key="compare_hover_mode",
-        )
-    peak_on = st.checkbox(
-        "ピーク表示",
-        value=st.session_state.get("compare_peak_on", False),
-        key="compare_peak_on",
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="advanced-section">', unsafe_allow_html=True)
-    st.markdown('<h4>抽出条件</h4>', unsafe_allow_html=True)
-    band_options = ["金額指定", "商品指定(2)", "パーセンタイル", "順位帯", "ターゲット近傍"]
-    band_mode = st.radio(
-        "バンド",
-        band_options,
-        horizontal=True,
-        index=band_options.index(band_mode) if band_mode in band_options else 0,
-        key="compare_band_mode",
-    )
-    if band_mode == "商品指定(2)":
-        if not snapshot.empty:
+        if band_mode == "商品指定(2)":
+            if not snapshot.empty:
+                opts = (
+                    snapshot["product_code"].fillna("")
+                    + " | "
+                    + snapshot["display_name"].fillna("")
+                ).tolist()
+                opts = [o for o in opts if o.strip() != "|"]
+                idx_a = 0
+                idx_b = 1 if len(opts) > 1 else 0
+                if band_params.get("prod_a"):
+                    idx_a = next(
+                        (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("prod_a")),
+                        0,
+                    )
+                if band_params.get("prod_b"):
+                    idx_b = next(
+                        (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("prod_b")),
+                        1 if len(opts) > 1 else 0,
+                    )
+                prod_a = st.selectbox("商品A", opts, index=idx_a, key="compare_prod_a") if opts else ""
+                prod_b = st.selectbox("商品B", opts, index=idx_b, key="compare_prod_b") if len(opts) > 1 else prod_a
+                band_params = {
+                    "prod_a": prod_a.split(" | ")[0] if prod_a else "",
+                    "prod_b": prod_b.split(" | ")[0] if prod_b else "",
+                }
+            else:
+                band_params = band_params_initial
+        elif band_mode == "パーセンタイル":
+            if not snapshot.empty:
+                p_low = int(band_params.get("p_low", 0))
+                p_high = int(band_params.get("p_high", 100))
+                p_low, p_high = st.slider(
+                    "百分位(%)",
+                    0,
+                    100,
+                    value=(p_low, p_high),
+                    key="compare_percentile_range",
+                )
+                band_params = {"p_low": p_low, "p_high": p_high}
+            else:
+                band_params = {"p_low": band_params.get("p_low", 0), "p_high": band_params.get("p_high", 100)}
+        elif band_mode == "順位帯":
+            if not snapshot.empty:
+                max_rank = int(snapshot["rank"].max()) if not snapshot.empty else 1
+                r_low = int(band_params.get("r_low", 1))
+                r_high = int(band_params.get("r_high", max_rank))
+                r_low, r_high = st.slider(
+                    "順位",
+                    1,
+                    max_rank,
+                    value=(r_low, min(r_high, max_rank)),
+                    key="compare_rank_range",
+                )
+                band_params = {"r_low": r_low, "r_high": r_high}
+            else:
+                band_params = {
+                    "r_low": int(band_params.get("r_low", 1)),
+                    "r_high": int(band_params.get("r_high", 1)),
+                }
+        elif band_mode == "ターゲット近傍":
             opts = (
-                snapshot["product_code"].fillna("")
-                + " | "
-                + snapshot["display_name"].fillna("")
+                snapshot["product_code"].fillna("") + " | " + snapshot["display_name"].fillna("")
             ).tolist()
-            opts = [o for o in opts if o.strip() != "|"]
-            idx_a = 0
-            idx_b = 1 if len(opts) > 1 else 0
-            if band_params.get("prod_a"):
-                idx_a = next(
-                    (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("prod_a")),
+            idx = 0
+            if band_params.get("target_code"):
+                idx = next(
+                    (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("target_code")),
                     0,
                 )
-            if band_params.get("prod_b"):
-                idx_b = next(
-                    (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("prod_b")),
-                    1 if len(opts) > 1 else 0,
+            tlabel = st.selectbox("基準商品", opts, index=idx, key="compare_target_label") if opts else ""
+            tcode = tlabel.split(" | ")[0] if tlabel else ""
+            by = st.radio(
+                "幅指定",
+                ["金額", "%"],
+                horizontal=True,
+                index=0 if band_params.get("by", "amt") == "amt" else 1,
+                key="compare_band_by",
+            )
+            if by == "金額":
+                width_default = int(band_params.get("width", 100000))
+                width = int_input("幅", width_default)
+                band_params = {"target_code": tcode, "by": "amt", "width": int(width)}
+            else:
+                width_default = float(band_params.get("width", 0.1))
+                step = width_default / 10 if width_default else 0.01
+                width = st.number_input(
+                    "幅",
+                    value=width_default,
+                    step=step,
+                    key="compare_band_width_pct",
                 )
-            prod_a = st.selectbox("商品A", opts, index=idx_a, key="compare_prod_a") if opts else ""
-            prod_b = st.selectbox("商品B", opts, index=idx_b, key="compare_prod_b") if len(opts) > 1 else prod_a
-            band_params = {
-                "prod_a": prod_a.split(" | ")[0] if prod_a else "",
-                "prod_b": prod_b.split(" | ")[0] if prod_b else "",
-            }
-        else:
-            band_params = band_params_initial
-    elif band_mode == "パーセンタイル":
-        if not snapshot.empty:
-            p_low = int(band_params.get("p_low", 0))
-            p_high = int(band_params.get("p_high", 100))
-            p_low, p_high = st.slider(
-                "百分位(%)",
-                0,
-                100,
-                value=(p_low, p_high),
-                key="compare_percentile_range",
+                band_params = {"target_code": tcode, "by": "pct", "width": float(width)}
+
+        st.markdown("#### クイック絞り込み")
+        quick = st.radio(
+            "クイック絞り込み",
+            ["なし", "Top5", "Top10", "最新YoY上位", "直近6M伸長上位"],
+            horizontal=True,
+            index=["なし", "Top5", "Top10", "最新YoY上位", "直近6M伸長上位"].index(st.session_state.get("compare_quick", "なし")),
+            key="compare_quick",
+        )
+
+        st.markdown("#### ラベル・表示")
+        label_cols = st.columns(2)
+        with label_cols[0]:
+            enable_label_avoid = st.checkbox(
+                "ラベル衝突回避",
+                value=st.session_state.get("compare_label_avoid", True),
+                key="compare_label_avoid",
             )
-            band_params = {"p_low": p_low, "p_high": p_high}
-        else:
-            band_params = {"p_low": band_params.get("p_low", 0), "p_high": band_params.get("p_high", 100)}
-    elif band_mode == "順位帯":
-        if not snapshot.empty:
-            max_rank = int(snapshot["rank"].max()) if not snapshot.empty else 1
-            r_low = int(band_params.get("r_low", 1))
-            r_high = int(band_params.get("r_high", max_rank))
-            r_low, r_high = st.slider(
-                "順位",
+            alternate_side = st.checkbox(
+                "ラベル左右交互配置",
+                value=st.session_state.get("compare_alternate_side", True),
+                key="compare_alternate_side",
+            )
+        with label_cols[1]:
+            label_gap_px = st.slider(
+                "ラベル最小間隔(px)",
+                8,
+                24,
+                st.session_state.get("compare_label_gap", 12),
+                key="compare_label_gap",
+            )
+            label_max = st.slider(
+                "ラベル最大件数",
+                5,
+                20,
+                st.session_state.get("compare_label_max", 12),
+                key="compare_label_max",
+            )
+        unit = st.radio(
+            "単位",
+            ["円", "千円", "百万円"],
+            horizontal=True,
+            index=["円", "千円", "百万円"].index(st.session_state.get("compare_unit", "千円")),
+            key="compare_unit",
+        )
+
+        st.markdown("#### 傾き検出")
+        slope_cols = st.columns(2)
+        with slope_cols[0]:
+            n_win = st.slider(
+                "傾きウィンドウ（月）",
+                0,
+                12,
+                st.session_state.get("compare_n_win", 6),
                 1,
-                max_rank,
-                value=(r_low, min(r_high, max_rank)),
-                key="compare_rank_range",
+                help="0=自動（系列の全期間で判定）",
+                key="compare_n_win",
             )
-            band_params = {"r_low": r_low, "r_high": r_high}
-        else:
-            band_params = {
-                "r_low": int(band_params.get("r_low", 1)),
-                "r_high": int(band_params.get("r_high", 1)),
-            }
-    elif band_mode == "ターゲット近傍":
-        opts = (
-            snapshot["product_code"].fillna("") + " | " + snapshot["display_name"].fillna("")
-        ).tolist()
-        idx = 0
-        if band_params.get("target_code"):
-            idx = next(
-                (i for i, o in enumerate(opts) if o.split(" | ")[0] == band_params.get("target_code")),
-                0,
+            cmp_mode = st.radio(
+                "傾き条件",
+                ["以上", "未満"],
+                horizontal=True,
+                index=["以上", "未満"].index(st.session_state.get("compare_cmp_mode", "以上")),
+                key="compare_cmp_mode",
             )
-        tlabel = st.selectbox("基準商品", opts, index=idx, key="compare_target_label") if opts else ""
-        tcode = tlabel.split(" | ")[0] if tlabel else ""
-        by = st.radio(
-            "幅指定",
-            ["金額", "%"],
-            horizontal=True,
-            index=0 if band_params.get("by", "amt") == "amt" else 1,
-            key="compare_band_by",
-        )
-        if by == "金額":
-            width_default = int(band_params.get("width", 100000))
-            width = int_input("幅", width_default)
-            band_params = {"target_code": tcode, "by": "amt", "width": int(width)}
-        else:
-            width_default = float(band_params.get("width", 0.1))
-            step = width_default / 10 if width_default else 0.01
-            width = st.number_input(
-                "幅",
-                value=width_default,
-                step=step,
-                key="compare_band_width_pct",
+        with slope_cols[1]:
+            thr_type = st.radio(
+                "しきい値の種類",
+                ["円/月", "%/月", "zスコア"],
+                horizontal=True,
+                index=["円/月", "%/月", "zスコア"].index(st.session_state.get("compare_thr_type", "円/月")),
+                key="compare_thr_type",
             )
-            band_params = {"target_code": tcode, "by": "pct", "width": float(width)}
-
-    quick = st.radio(
-        "クイック絞り込み",
-        ["なし", "Top5", "Top10", "最新YoY上位", "直近6M伸長上位"],
-        horizontal=True,
-        index=["なし", "Top5", "Top10", "最新YoY上位", "直近6M伸長上位"].index(st.session_state.get("compare_quick", "なし")),
-        key="compare_quick",
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="advanced-section">', unsafe_allow_html=True)
-    st.markdown('<h4>ラベル・表示</h4>', unsafe_allow_html=True)
-    label_cols = st.columns(2)
-    with label_cols[0]:
-        enable_label_avoid = st.checkbox(
-            "ラベル衝突回避",
-            value=st.session_state.get("compare_label_avoid", True),
-            key="compare_label_avoid",
-        )
-        alternate_side = st.checkbox(
-            "ラベル左右交互配置",
-            value=st.session_state.get("compare_alternate_side", True),
-            key="compare_alternate_side",
-        )
-    with label_cols[1]:
-        label_gap_px = st.slider(
-            "ラベル最小間隔(px)",
-            8,
-            24,
-            st.session_state.get("compare_label_gap", 12),
-            key="compare_label_gap",
-        )
-        label_max = st.slider(
-            "ラベル最大件数",
-            5,
-            20,
-            st.session_state.get("compare_label_max", 12),
-            key="compare_label_max",
-        )
-    unit = st.radio(
-        "単位",
-        ["円", "千円", "百万円"],
-        horizontal=True,
-        index=["円", "千円", "百万円"].index(st.session_state.get("compare_unit", "千円")),
-        key="compare_unit",
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="advanced-section">', unsafe_allow_html=True)
-    st.markdown('<h4>傾き検出</h4>', unsafe_allow_html=True)
-    slope_cols = st.columns(2)
-    with slope_cols[0]:
-        n_win = st.slider(
-            "傾きウィンドウ（月）",
-            0,
-            12,
-            st.session_state.get("compare_n_win", 6),
-            1,
-            help="0=自動（系列の全期間で判定）",
-            key="compare_n_win",
-        )
-        cmp_mode = st.radio(
-            "傾き条件",
-            ["以上", "未満"],
-            horizontal=True,
-            index=["以上", "未満"].index(st.session_state.get("compare_cmp_mode", "以上")),
-            key="compare_cmp_mode",
-        )
-    with slope_cols[1]:
-        thr_type = st.radio(
-            "しきい値の種類",
-            ["円/月", "%/月", "zスコア"],
-            horizontal=True,
-            index=["円/月", "%/月", "zスコア"].index(st.session_state.get("compare_thr_type", "円/月")),
-            key="compare_thr_type",
-        )
-        if thr_type == "円/月":
-            thr_val = int_input(
-                "しきい値",
-                st.session_state.get("compare_thr_val_int", 0),
-            )
-            st.session_state.compare_thr_val_int = thr_val
-        else:
-            thr_val = st.number_input(
-                "しきい値",
-                value=float(st.session_state.get("compare_thr_val_float", 0.0)),
-                step=0.01,
-                format="%.2f",
-                key="compare_thr_val_float",
-            )
-            st.session_state.compare_thr_val_float = float(thr_val)
-    st.markdown('</div>', unsafe_allow_html=True)
+            if thr_type == "円/月":
+                thr_val = int_input(
+                    "しきい値",
+                    st.session_state.get("compare_thr_val_int", 0),
+                )
+                st.session_state.compare_thr_val_int = thr_val
+            else:
+                thr_val = st.number_input(
+                    "しきい値",
+                    value=float(st.session_state.get("compare_thr_val_float", 0.0)),
+                    step=0.01,
+                    format="%.2f",
+                    key="compare_thr_val_float",
+                )
+                st.session_state.compare_thr_val_float = float(thr_val)
 
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="compare-grid__chart">', unsafe_allow_html=True)
-    st.markdown('<section class="chart-surface" aria-label="メインチャート">', unsafe_allow_html=True)
-    ai_summary_container = st.container()
 
     if amount_slider_cfg:
         low_scaled, high_scaled = st.session_state.get(
@@ -12151,60 +12196,69 @@ elif page == "比較ビュー":
 
     df_main = df_long[df_long["product_code"].isin(main_codes)]
 
-    with ai_summary_container:
-        ai_on = st.toggle(
-            "AIサマリー",
-            value=st.session_state.get("compare_ai_toggle", False),
-            key="compare_ai_toggle",
-            help="要約・コメント・自動説明を表示（オンデマンド計算）",
+    with chart_body_placeholder:
+        st.markdown(
+            '<div class="chart-body" role="region" aria-live="polite">',
+            unsafe_allow_html=True,
         )
-        with st.expander("AIサマリー", expanded=ai_on):
-            if ai_on and not df_main.empty:
-                pos = len(codes_steep)
-                mtn = len(codes_mtn & set(main_codes))
-                val = len(codes_val & set(main_codes))
-                explain = _ai_explain(
-                    {
-                        "対象SKU数": len(main_codes),
-                        "中央値(年計)": float(
-                            snapshot_disp.loc[
-                                snapshot_disp["product_code"].isin(main_codes),
-                                "year_sum_disp",
-                            ].median()
-                        ),
-                        "急勾配数": pos,
-                        "山数": mtn,
-                        "谷数": val,
-                    }
-                )
-                st.info(f"**AI比較コメント**：{explain}")
+        ai_summary_container = st.container()
+        with ai_summary_container:
+            ai_on = st.toggle(
+                "AIサマリー",
+                value=st.session_state.get("compare_ai_toggle", False),
+                key="compare_ai_toggle",
+                help="要約・コメント・自動説明を表示（オンデマンド計算）",
+            )
+            with st.expander("AIサマリー", expanded=ai_on):
+                if ai_on and not df_main.empty:
+                    pos = len(codes_steep)
+                    mtn = len(codes_mtn & set(main_codes))
+                    val = len(codes_val & set(main_codes))
+                    explain = _ai_explain(
+                        {
+                            "対象SKU数": len(main_codes),
+                            "中央値(年計)": float(
+                                snapshot_disp.loc[
+                                    snapshot_disp["product_code"].isin(main_codes),
+                                    "year_sum_disp",
+                                ].median()
+                            ),
+                            "急勾配数": pos,
+                            "山数": mtn,
+                            "谷数": val,
+                        }
+                    )
+                    st.info(f"**AI比較コメント**：{explain}")
 
-    tb_common = dict(
-        period=period,
-        node_mode=node_mode,
-        hover_mode=hover_mode,
-        op_mode=op_mode,
-        peak_on=peak_on,
-        unit=unit,
-        enable_avoid=enable_label_avoid,
-        gap_px=label_gap_px,
-        max_labels=label_max,
-        alt_side=alternate_side,
-        slope_conf=None,
-        forecast_method="なし",
-        forecast_window=12,
-        forecast_horizon=6,
-        forecast_k=2.0,
-        forecast_robust=False,
-        anomaly="OFF",
-    )
-    fig = build_chart_card(
-        df_main,
-        selected_codes=None,
-        multi_mode=True,
-        tb=tb_common,
-        band_range=(low, high),
-    )
+        tb_common = dict(
+            period=period,
+            node_mode=node_mode,
+            hover_mode=hover_mode,
+            op_mode=op_mode,
+            peak_on=peak_on,
+            unit=unit,
+            enable_avoid=enable_label_avoid,
+            gap_px=label_gap_px,
+            max_labels=label_max,
+            alt_side=alternate_side,
+            slope_conf=None,
+            forecast_method="なし",
+            forecast_window=12,
+            forecast_horizon=6,
+            forecast_k=2.0,
+            forecast_robust=False,
+            anomaly="OFF",
+        )
+        debounce_render("compare_chart")
+        fig = build_chart_card(
+            df_main,
+            selected_codes=None,
+            multi_mode=True,
+            tb=tb_common,
+            band_range=(low, high),
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown("</section>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
