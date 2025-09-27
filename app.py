@@ -8582,27 +8582,6 @@ No auto-calculated metrics are linked to this template."""
     with import_section(
         3, "ファイルアップロード", "Data Upload", accent="upload"
     ):
-        st.markdown(
-            "**Excel(.xlsx) / CSV をアップロードしてください。**<br>"
-            "<span class='mck-import-section__hint'>Upload Excel (.xlsx) or CSV files that include monthly sales, cost, or inventory data.</span>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "列に `YYYY-MM` 形式の月度を含め、数値は半角で記録してください。<br>"
-            "<span class='mck-import-section__hint'>Include month columns in YYYY-MM format and provide numeric values in standard digits.</span>",
-            unsafe_allow_html=True,
-        )
-        if "import_layout_expanded" not in st.session_state:
-            st.session_state.import_layout_expanded = True
-        with st.expander(
-            "CSVの列構成を確認する / Review column layout",
-            expanded=st.session_state.get("import_layout_expanded", True),
-        ):
-            st.markdown(
-                "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように名称・コード列の後に月次列を並べてください。<br>"
-                "Example: place month columns after name/code columns such as `Product Name, Product Code, 2022-01, 2022-02, ...`.",
-                unsafe_allow_html=True,
-            )
         col_u1, col_u2 = st.columns([2, 1])
         with col_u1:
             render_icon_label(
@@ -8644,6 +8623,28 @@ No auto-calculated metrics are linked to this template."""
             )
             st.session_state.settings["missing_policy"] = missing_policy
             st.session_state.import_policy_expanded = missing_policy == "mark_missing"
+
+        st.markdown(
+            "**Excel(.xlsx) / CSV をアップロードしてください。**<br>"
+            "<span class='mck-import-section__hint'>Upload Excel (.xlsx) or CSV files that include monthly sales, cost, or inventory data.</span>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "列に `YYYY-MM` 形式の月度を含め、数値は半角で記録してください。<br>"
+            "<span class='mck-import-section__hint'>Include month columns in YYYY-MM format and provide numeric values in standard digits.</span>",
+            unsafe_allow_html=True,
+        )
+        if "import_layout_expanded" not in st.session_state:
+            st.session_state.import_layout_expanded = True
+        with st.expander(
+            "CSVの列構成を確認する / Review column layout",
+            expanded=st.session_state.get("import_layout_expanded", True),
+        ):
+            st.markdown(
+                "例: `商品名, 商品コード, 2022-01, 2022-02, ...` のように名称・コード列の後に月次列を並べてください。<br>"
+                "Example: place month columns after name/code columns such as `Product Name, Product Code, 2022-01, 2022-02, ...`.",
+                unsafe_allow_html=True,
+            )
 
         policy_help_expanded = st.session_state.get("import_policy_expanded", False)
         with st.expander(
