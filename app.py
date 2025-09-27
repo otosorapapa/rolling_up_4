@@ -3489,15 +3489,15 @@ def render_app_hero():
         ("YoY", "前年同月比。トレンドの伸び縮みを%で比較します。"),
         ("HHI", "集中度指標。SKUごとの構成比平方和で偏りを把握します。"),
     ]
-    badge_html = "".join(
-        """
-        <span class="glossary-term has-tooltip" data-tooltip="{tooltip}">{label}</span>
-        """.format(
-            label=html.escape(label),
-            tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+    badge_parts: List[str] = []
+    for label, desc in badge_defs:
+        badge_parts.append(
+            "<span class=\"glossary-term has-tooltip\" data-tooltip=\"{tooltip}\">{label}</span>".format(
+                label=html.escape(label),
+                tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+            )
         )
-        for label, desc in badge_defs
-    )
+    badge_html = "".join(badge_parts)
     usage_html = (
         textwrap.dedent(
             """
@@ -7682,15 +7682,15 @@ def render_glossary_faq() -> None:
         ("Δ", "デルタ。前月からの金額差分を意味します。"),
         ("HHI", "Herfindahl-Hirschman Index。SKU構成比の集中度を測定します。"),
     ]
-    glossary_html = "".join(
-        """
-        <span class="glossary-term has-tooltip" data-tooltip="{tooltip}">{label}</span>
-        """.format(
-            label=html.escape(label),
-            tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+    glossary_parts: List[str] = []
+    for label, desc in glossary_items:
+        glossary_parts.append(
+            "<span class=\"glossary-term has-tooltip\" data-tooltip=\"{tooltip}\">{label}</span>".format(
+                label=html.escape(label),
+                tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+            )
         )
-        for label, desc in glossary_items
-    )
+    glossary_html = "".join(glossary_parts)
     st.markdown(
         """
         <div class="glossary-cloud" role="list" aria-label="主要指標の用語集">
