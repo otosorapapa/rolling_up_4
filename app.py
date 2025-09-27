@@ -11867,7 +11867,7 @@ elif page == "比較ビュー":
     chart_body_placeholder = st.container()
 
     st.markdown('<div class="chart-accordion">', unsafe_allow_html=True)
-    with st.expander("詳細設定", expanded=False, key="compare_details_panel"):
+    with st.expander("詳細設定", expanded=False):
         st.markdown("#### 表示")
         display_cols = st.columns(2)
         with display_cols[0]:
