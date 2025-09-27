@@ -6536,6 +6536,8 @@ st.markdown(
       position:relative;
       transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
       cursor:pointer;
+      text-decoration:none;
+      color:inherit;
     }
     .tour-step-guide__item:hover{
       transform:translateY(-3px);
@@ -7509,6 +7511,21 @@ TOUR_STEPS: List[Dict[str, str]] = [
 ]
 
 
+TOUR_STEP_ROUTES: Dict[str, str] = {
+    "import": "/data",
+    "dashboard": "/",
+    "ranking": "/ranking",
+    "compare": "/compare",
+    "detail": "/sku",
+    "anomaly": "/anomaly",
+    "correlation": "/correlation",
+    "category": "/affinity",
+    "alert": "/alerts",
+    "settings": "/settings",
+    "saved": "/saved",
+}
+
+
 TOUR_SECTION_ORDER: List[str] = []
 TOUR_SECTION_COUNTS: Dict[str, int] = {}
 for step in TOUR_STEPS:
@@ -7577,15 +7594,16 @@ def render_step_guide(active_nav_key: str) -> None:
         aria_current_attr = ' aria-current="step"' if nav_key == active_nav_key else ""
 
         category_key = html.escape(nav_meta.get("category", ""), quote=True)
+        href = html.escape(TOUR_STEP_ROUTES.get(nav_key, "#"), quote=True)
 
         item_html = (
-            f'<div class="tour-step-guide__item has-tooltip" data-step="{nav_key}" '
-            f'data-category="{category_key}" '
+            f'<a class="tour-step-guide__item has-tooltip" data-step="{nav_key}" '
+            f'data-category="{category_key}" href="{href}" '
             f'data-active="{data_active}" data-tooltip="{tooltip_attr}" title="{title_attr}" '
             f'tabindex="0" role="listitem" aria-label="{aria_label_attr}"{aria_current_attr}>'
             f'<span class="tour-step-guide__icon" aria-hidden="true">{icon_html}</span>'
             f'<span class="tour-step-guide__label">{label_html}</span>'
-            "</div>"
+            "</a>"
         )
         items_html.append(item_html)
 
