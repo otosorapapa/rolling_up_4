@@ -1311,78 +1311,255 @@ small, .text-small{
 }
 .mck-sidebar-summary strong{ color:#ffffff; }
 .mck-hero{
-  background:linear-gradient(135deg, rgba(var(--primary-rgb,11,31,59),0.96) 0%, rgba(var(--accent-rgb,30,136,229),0.88) 100%);
-  color:#ffffff;
-  padding:1.8rem 2rem;
-  border-radius:20px;
-  margin-bottom:1.2rem;
-  box-shadow:0 24px 40px rgba(var(--primary-rgb,11,31,59),0.32);
   position:relative;
+  background:
+    radial-gradient(120% 140% at 85% -10%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 58%),
+    linear-gradient(125deg, rgba(var(--primary-rgb,11,31,59),0.96) 0%, rgba(var(--accent-rgb,30,136,229),0.84) 48%, rgba(var(--primary-rgb,11,31,59),0.92) 100%);
+  color:#ffffff;
+  padding:2.25rem 2.6rem;
+  border-radius:26px;
+  margin-bottom:1.8rem;
+  box-shadow:0 28px 48px rgba(var(--primary-rgb,11,31,59),0.35);
   overflow:hidden;
-  font-family:var(--font-base);
+  border:1px solid rgba(255,255,255,0.18);
+}
+.mck-hero::before{
+  content:"";
+  position:absolute;
+  inset:auto auto -42% -12%;
+  width:320px;
+  height:320px;
+  background:rgba(255,255,255,0.14);
+  border-radius:50%;
+  filter:blur(0px);
 }
 .mck-hero::after{
   content:"";
   position:absolute;
-  inset:auto -18% -32% auto;
-  width:220px;
-  height:220px;
-  background:rgba(255,255,255,0.18);
+  inset:-28% -14% auto auto;
+  width:260px;
+  height:260px;
+  background:rgba(255,255,255,0.08);
   border-radius:50%;
+}
+.mck-hero__grid{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-wrap:wrap;
+  gap:2.4rem;
+  align-items:stretch;
+}
+.mck-hero__content{
+  flex:1 1 320px;
+  max-width:680px;
 }
 .mck-hero h1{
   color:#ffffff;
-  margin-bottom:0.5rem;
-  font-size:1.65rem;
+  margin-bottom:0.75rem;
+  font-size:2.05rem;
   font-family:var(--font-heading);
+  line-height:1.2;
 }
-.mck-hero p{
-  color:rgba(235,242,250,0.88);
-  font-size:1.02rem;
+.mck-hero__lead{
+  color:rgba(240,247,255,0.9);
+  font-size:1.05rem;
   margin-bottom:0;
+  line-height:1.7;
 }
 .mck-hero__eyebrow{
   text-transform:uppercase;
-  letter-spacing:.16em;
-  font-size:0.78rem;
+  letter-spacing:.22em;
+  font-size:0.74rem;
   font-weight:600;
-  color:rgba(235,242,250,0.88);
-  margin-bottom:0.6rem;
+  color:rgba(240,247,255,0.82);
+  margin-bottom:1rem;
   display:inline-flex;
   align-items:center;
-  gap:0.5rem;
+  gap:0.4rem;
+  padding:0.35rem 0.85rem;
+  border-radius:999px;
+  background:rgba(255,255,255,0.12);
+  backdrop-filter:blur(6px);
 }
-.mck-hero__eyebrow:before{ content:"◦"; font-size:0.9rem; }
+.mck-hero__eyebrow:before{
+  content:"";
+  width:0.45rem;
+  height:0.45rem;
+  border-radius:50%;
+  background:#ffffff;
+  opacity:0.75;
+}
+.mck-hero__actions{
+  margin:1.4rem 0 1.8rem;
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.75rem;
+}
+.mck-button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:0.45rem;
+  padding:0.65rem 1.4rem;
+  font-weight:600;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.55);
+  color:#0b1f3b;
+  background:#ffffff;
+  box-shadow:0 16px 28px rgba(12,32,58,0.22);
+  text-decoration:none;
+  transition:transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease;
+}
+.mck-button:hover,
+.mck-button:focus{
+  transform:translateY(-1px);
+  box-shadow:0 22px 34px rgba(12,32,58,0.28);
+  text-decoration:none;
+}
+.mck-button--primary{
+  color:#0b1f3b;
+  background:#ffffff;
+}
+.mck-button--ghost{
+  background:rgba(255,255,255,0.12);
+  color:#ffffff;
+  border-color:rgba(255,255,255,0.42);
+  box-shadow:none;
+}
+.mck-button--ghost:hover,
+.mck-button--ghost:focus{
+  background:rgba(255,255,255,0.2);
+  color:#ffffff;
+}
+.mck-hero__actions small{
+  display:block;
+  width:100%;
+  color:rgba(240,247,255,0.75);
+  font-size:0.8rem;
+  margin-top:0.2rem;
+}
+.mck-hero__stats{
+  margin:0 0 1.6rem;
+  padding:0;
+  list-style:none;
+  display:grid;
+  gap:0.85rem;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+}
+.mck-hero__stat{
+  background:rgba(255,255,255,0.14);
+  border-radius:18px;
+  padding:0.85rem 1rem;
+  border:1px solid rgba(255,255,255,0.24);
+  backdrop-filter:blur(6px);
+  box-shadow:0 16px 32px rgba(12,32,58,0.22);
+}
+.mck-hero__stat-value{
+  display:block;
+  font-family:var(--font-heading);
+  font-size:1.28rem;
+  font-weight:700;
+  color:#ffffff;
+}
+.mck-hero__stat-label{
+  display:block;
+  margin-top:0.25rem;
+  font-size:0.8rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:rgba(240,247,255,0.76);
+}
+.mck-hero__highlights{
+  margin:0;
+  padding:0;
+  list-style:none;
+  display:grid;
+  gap:1rem;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+}
+.mck-hero__highlight{
+  background:rgba(255,255,255,0.16);
+  border-radius:20px;
+  padding:1.05rem 1.2rem;
+  border:1px solid rgba(255,255,255,0.24);
+  min-height:168px;
+  display:flex;
+  flex-direction:column;
+  gap:0.65rem;
+  box-shadow:0 18px 38px rgba(12,32,58,0.24);
+}
+.mck-hero__highlight-icon{
+  font-size:1.35rem;
+  width:2.5rem;
+  height:2.5rem;
+  border-radius:0.95rem;
+  background:rgba(255,255,255,0.2);
+  color:#0b1f3b;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.mck-hero__highlight-title{
+  margin:0;
+  font-size:1.02rem;
+  font-weight:700;
+  color:#ffffff;
+}
+.mck-hero__highlight-desc{
+  margin:0;
+  color:rgba(240,247,255,0.86);
+  font-size:0.9rem;
+  line-height:1.55;
+}
 .mck-section-header{
+  position:relative;
   display:flex;
   align-items:flex-start;
-  gap:0.85rem;
-  margin:0.8rem 0 0.6rem;
+  gap:0.95rem;
+  margin:1.4rem 0 0.8rem;
+  padding:0.95rem 1.2rem;
+  border-radius:18px;
+  background:linear-gradient(120deg, rgba(var(--primary-rgb,11,31,59),0.08), rgba(var(--primary-rgb,11,31,59),0.02));
+  border:1px solid rgba(var(--primary-rgb,11,31,59),0.16);
+  box-shadow:0 16px 28px rgba(var(--primary-rgb,11,31,59),0.12);
+  overflow:hidden;
+}
+.mck-section-header::before{
+  content:"";
+  position:absolute;
+  inset:-32% auto auto -14%;
+  width:130px;
+  height:130px;
+  background:radial-gradient(circle at center, rgba(var(--accent-rgb,30,136,229),0.32) 0%, rgba(var(--accent-rgb,30,136,229),0) 70%);
+  opacity:0.6;
 }
 .mck-section-header h2{
   margin:0;
-  font-size:1.35rem;
-  line-height:1.2;
+  font-size:1.42rem;
+  line-height:1.25;
   color:var(--accent-strong);
   font-family:var(--font-heading);
 }
 .mck-section-subtitle{
-  margin:0.25rem 0 0;
-  font-size:0.96rem;
+  margin:0.3rem 0 0;
+  font-size:0.95rem;
   color:var(--ink-subtle);
 }
 .mck-section-icon{
-  width:34px;
-  height:34px;
+  width:40px;
+  height:40px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  border-radius:50%;
-  background:rgba(var(--accent-rgb,30,136,229),0.12);
+  border-radius:14px;
+  background:rgba(var(--accent-rgb,30,136,229),0.16);
   color:var(--accent-strong);
-  font-size:1rem;
+  font-size:1.05rem;
   flex-shrink:0;
-  margin-top:0.1rem;
+  margin-top:0.15rem;
+  position:relative;
+  z-index:1;
 }
 .mck-section-icon svg{
   width:20px;
@@ -2381,7 +2558,10 @@ st.markdown(
     }
     @media (max-width: 880px){
       body, .stApp, [data-testid="stAppViewContainer"]{ font-size:15px; }
-      .mck-hero{ padding:1.25rem; }
+      .mck-hero{ padding:1.6rem 1.4rem; border-radius:22px; }
+      .mck-hero__grid{ gap:1.6rem; }
+      .mck-hero__stats{ grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
+      .mck-hero__highlights{ grid-template-columns:1fr; }
       .mobile-sticky-actions{ padding:0.75rem 0.85rem; }
       .mobile-sticky-actions .stButton>button{ padding:0.85rem 1.1rem; font-size:1rem; }
       .stTabs [data-baseweb="tab"]{ font-size:0.9rem; padding:0.45rem 0.75rem; }
@@ -3053,16 +3233,149 @@ def format_template_metric(metric: Dict[str, object]) -> str:
 
 
 def render_app_hero():
-    st.markdown(
-        f"""
-        <div class=\"mck-hero\">
-            <div class=\"mck-hero__eyebrow\">{t("header.eyebrow")}</div>
-            <h1>{t("header.title")}</h1>
-            <p>{t("header.description")}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    eyebrow = html.escape(t("header.eyebrow"))
+    title = html.escape(t("header.title"))
+    description = html.escape(t("header.description"))
+
+    stats = [
+        {
+            "value": t("header.stats.coverage.value", default="12ヶ月"),
+            "label": t("header.stats.coverage.label", default="ローリング期間"),
+        },
+        {
+            "value": t("header.stats.refresh.value", default="月次更新"),
+            "label": t("header.stats.refresh.label", default="更新頻度"),
+        },
+        {
+            "value": t("header.stats.ai.value", default="AIサマリー"),
+            "label": t("header.stats.ai.label", default="分析モード"),
+        },
+    ]
+    stat_items: List[str] = []
+    for stat in stats:
+        value = str(stat.get("value", ""))
+        label = str(stat.get("label", ""))
+        if not value and not label:
+            continue
+        stat_items.append(
+            """
+            <li class="mck-hero__stat">
+                <span class="mck-hero__stat-value">{value}</span>
+                <span class="mck-hero__stat-label">{label}</span>
+            </li>
+            """.format(value=html.escape(value), label=html.escape(label))
+        )
+
+    highlights = [
+        {
+            "icon": "📈",
+            "title": t("header.highlights.trend.title", default="勢いを一目で把握"),
+            "description": t(
+                "header.highlights.trend.description",
+                default="直近12カ月の推移から伸びと減速の兆しを見抜きます。",
+            ),
+        },
+        {
+            "icon": "🤖",
+            "title": t("header.highlights.copilot.title", default="AIが要点を要約"),
+            "description": t(
+                "header.highlights.copilot.description",
+                default="コパイロットがKPIの変化要因や注目SKUを短時間で提案します。",
+            ),
+        },
+        {
+            "icon": "🧭",
+            "title": t("header.highlights.workflow.title", default="次のアクションを導く"),
+            "description": t(
+                "header.highlights.workflow.description",
+                default="ランキング・比較・異常検知まで一気通貫で深掘りできます。",
+            ),
+        },
+    ]
+    highlight_items: List[str] = []
+    for item in highlights:
+        title_text = str(item.get("title", "")).strip()
+        desc_text = str(item.get("description", "")).strip()
+        icon_text = str(item.get("icon", "")).strip() or "•"
+        if not title_text and not desc_text:
+            continue
+        highlight_items.append(
+            """
+            <li class="mck-hero__highlight">
+                <span class="mck-hero__highlight-icon">{icon}</span>
+                <div>
+                    <p class="mck-hero__highlight-title">{title}</p>
+                    <p class="mck-hero__highlight-desc">{description}</p>
+                </div>
+            </li>
+            """.format(
+                icon=html.escape(icon_text),
+                title=html.escape(title_text),
+                description=html.escape(desc_text),
+            )
+        )
+
+    primary_label = t("header.actions.primary.label", default="サンプルデータで試す")
+    primary_hint = t(
+        "header.actions.primary.description",
+        default="テンプレートとデモデータですぐにダッシュボードを体験",
     )
+    secondary_label = t(
+        "header.actions.secondary.label", default="データ取込ガイドを見る"
+    )
+    secondary_hint = t(
+        "header.actions.secondary.description",
+        default="CSV/Excel整形の手順とテンプレートを確認",
+    )
+    primary_href = t("header.actions.primary.href", default="?nav=import")
+    secondary_href = t("header.actions.secondary.href", default="?nav=help")
+    action_note = t("header.actions.note", default="ダッシュボードの主要ワークフローをこの1画面に集約しました。")
+
+    stats_html = (
+        f"<ul class='mck-hero__stats'>{''.join(stat_items)}</ul>" if stat_items else ""
+    )
+    highlights_html = (
+        f"<ul class='mck-hero__highlights'>{''.join(highlight_items)}</ul>"
+        if highlight_items
+        else ""
+    )
+    note_html = (
+        f"<small>{html.escape(action_note)}</small>" if action_note.strip() else ""
+    )
+
+    hero_html = """
+    <section class="mck-hero" aria-labelledby="hero-title">
+        <div class="mck-hero__grid">
+            <div class="mck-hero__content">
+                <div class="mck-hero__eyebrow">{eyebrow}</div>
+                <h1 id="hero-title">{title}</h1>
+                <p class="mck-hero__lead">{description}</p>
+                {stats}
+                <div class="mck-hero__actions" role="group">
+                    <a class="mck-button mck-button--primary" href="{primary_href}" title="{primary_hint}">{primary_label}</a>
+                    <a class="mck-button mck-button--ghost" href="{secondary_href}" title="{secondary_hint}">{secondary_label}</a>
+                    {note}
+                </div>
+                {highlights}
+            </div>
+        </div>
+    </section>
+    """.format(
+        eyebrow=eyebrow,
+        title=title,
+        description=description,
+        stats=stats_html,
+        primary_href=html.escape(primary_href, quote=True),
+        primary_hint=html.escape(primary_hint, quote=True),
+        primary_label=html.escape(primary_label),
+        secondary_href=html.escape(secondary_href, quote=True),
+        secondary_hint=html.escape(secondary_hint, quote=True),
+        secondary_label=html.escape(secondary_label),
+        note=note_html,
+        highlights=highlights_html,
+    )
+
+    st.markdown(hero_html, unsafe_allow_html=True)
 
 
 def render_onboarding_modal() -> None:
