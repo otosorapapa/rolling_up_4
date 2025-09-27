@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Iterable, Callable
+from typing import Optional, List, Dict, Tuple, Iterable, Callable, Any
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -2571,6 +2571,123 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    f"""
+    <style>
+    .nav-action-bar{{
+      margin:0 0 1.2rem;
+      padding:0.85rem 1.1rem;
+      border-radius:16px;
+      background:linear-gradient(135deg, rgba({PRIMARY_RGB},0.08), rgba({PRIMARY_RGB},0.18));
+      border:1px solid rgba({PRIMARY_RGB},0.35);
+      box-shadow:0 12px 28px rgba({PRIMARY_RGB},0.18);
+    }}
+    .nav-action-bar .stButton>button,
+    .nav-action-bar .stLinkButton>button{{
+      min-height:44px;
+      font-size:0.95rem;
+      font-weight:700;
+      border-radius:12px;
+    }}
+    .nav-action-bar .stButton>button{{
+      background:linear-gradient(135deg, {PRIMARY_LIGHT}, {PRIMARY_COLOR});
+      border:1px solid rgba({PRIMARY_RGB},0.4);
+      color:#0b1f3b;
+      box-shadow:0 16px 32px rgba({PRIMARY_RGB},0.22);
+    }}
+    .nav-action-bar .stButton>button:disabled{{
+      background:rgba(255,255,255,0.4);
+      color:rgba(11,31,59,0.45);
+      box-shadow:none;
+    }}
+    .nav-action-bar .stLinkButton>button{{
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba({PRIMARY_RGB},0.35);
+      color:#ffffff;
+    }}
+    .mck-hero__usage{{
+      margin-top:1.8rem;
+      padding:1.2rem 1.4rem;
+      border-radius:20px;
+      background:rgba(255,255,255,0.16);
+      border:1px solid rgba(255,255,255,0.26);
+      color:rgba(240,247,255,0.95);
+      box-shadow:0 18px 34px rgba(12,32,58,0.22);
+    }}
+    .mck-hero__usage h2,
+    .mck-hero__usage h3{{
+      color:#ffffff;
+      margin:0 0 0.6rem;
+      letter-spacing:.04em;
+    }}
+    .mck-hero__usage ol,
+    .mck-hero__usage ul{{
+      margin:0 0 0.8rem 1.3rem;
+      padding:0;
+    }}
+    .mck-hero__usage li{{
+      margin-bottom:0.35rem;
+      line-height:1.65;
+    }}
+    .mck-hero__assumption{{
+      margin-top:1rem;
+      padding-top:0.85rem;
+      border-top:1px solid rgba(255,255,255,0.28);
+    }}
+    .mck-hero__hint{{
+      margin:0.6rem 0 0;
+      font-size:0.85rem;
+      color:rgba(240,247,255,0.85);
+    }}
+    .glossary-cloud{{
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.6rem;
+      margin:0.8rem 0 1rem;
+    }}
+    .glossary-term{{
+      display:inline-flex;
+      align-items:center;
+      gap:0.35rem;
+      padding:0.2rem 0.65rem;
+      border-radius:999px;
+      border:1px solid rgba({PRIMARY_RGB},0.55);
+      background:rgba({PRIMARY_RGB},0.08);
+      color:{PRIMARY_COLOR};
+      font-weight:700;
+      font-size:0.82rem;
+      letter-spacing:.03em;
+    }}
+    .glossary-term::before{{
+      content:"i";
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:1.1rem;
+      height:1.1rem;
+      border-radius:50%;
+      background:rgba({PRIMARY_RGB},0.15);
+      border:1px solid rgba({PRIMARY_RGB},0.35);
+      font-size:0.72rem;
+    }}
+    .input-warning{{
+      color:{ERROR_COLOR};
+      font-weight:700;
+      margin-top:0.25rem;
+      line-height:1.55;
+    }}
+    .input-warning__tip{{
+      display:block;
+      font-weight:400;
+      margin-top:0.15rem;
+      font-size:0.84rem;
+      color:rgba(219,68,55,0.9);
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ---------------- Session State ----------------
 if "data_monthly" not in st.session_state:
     st.session_state.data_monthly = None  # long-form DF
@@ -3343,6 +3460,57 @@ def render_app_hero():
         f"<small>{html.escape(action_note)}</small>" if action_note.strip() else ""
     )
 
+    usage_steps = [
+        "データ管理ページでテンプレートと取込手順を確認し、サンプルで操作感を把握します。",
+        "CSV/Excelをアップロードしたらデータ品質チェックで欠損や異常を確認します。",
+        "ダッシュボードでKPIとAIサマリーを読み、ランキングや比較ビューに遷移して深掘りします。",
+        "異常検知・アラートを確認し、次のアクションや報告資料を作成します。",
+    ]
+    assumptions = [
+        "月次粒度の数値列が12ヶ月以上含まれていること。",
+        "列名は `2023-01` のように日付として解釈できる形式であること。",
+        "売上・粗利などの数値は円ベースで記録し、欠損は0または空欄で表すこと。",
+        "SKUコードや部門など識別子は1行1SKU（または1勘定科目）で揃えてください。",
+    ]
+    usage_items = "".join(
+        f"<li>{html.escape(step)}</li>" for step in usage_steps
+    )
+    assumption_items = "".join(
+        f"<li>{html.escape(item)}</li>" for item in assumptions
+    )
+    badge_defs = [
+        ("年計", "直近12ヶ月の売上累計。季節変動を平均化して規模感を把握します。"),
+        ("YoY", "前年同月比。トレンドの伸び縮みを%で比較します。"),
+        ("HHI", "集中度指標。SKUごとの構成比平方和で偏りを把握します。"),
+    ]
+    badge_html = "".join(
+        """
+        <span class="glossary-term has-tooltip" data-tooltip="{tooltip}">{label}</span>
+        """.format(
+            label=html.escape(label),
+            tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+        )
+        for label, desc in badge_defs
+    )
+    usage_html = """
+    <div class="mck-hero__usage" id="hero-usage">
+        <h2 id="hero-howto">使い方の流れ</h2>
+        <ol>{usage_items}</ol>
+        <div class="mck-hero__assumption">
+            <h3>データ前提条件</h3>
+            <ul>{assumption_items}</ul>
+        </div>
+        <div class="glossary-cloud" aria-label="主要な専門用語">
+            {badge_html}
+        </div>
+        <p class="mck-hero__hint">詳細なFAQは本ページ下部の「FAQ / 用語集」リンクから確認できます。</p>
+    </div>
+    """.format(
+        usage_items=usage_items,
+        assumption_items=assumption_items,
+        badge_html=badge_html,
+    )
+
     hero_html = """
     <section class="mck-hero" aria-labelledby="hero-title">
         <div class="mck-hero__grid">
@@ -3360,6 +3528,7 @@ def render_app_hero():
             </div>
         </div>
     </section>
+    {usage}
     """.format(
         eyebrow=eyebrow,
         title=title,
@@ -3373,6 +3542,7 @@ def render_app_hero():
         secondary_label=html.escape(secondary_label),
         note=note_html,
         highlights=highlights_html,
+        usage=usage_html,
     )
 
     st.markdown(hero_html, unsafe_allow_html=True)
@@ -3723,11 +3893,12 @@ def end_month_selector(
     sidebar: bool = False,
     help_text: Optional[str] = None,
     default: Optional[str] = None,
+    container: Optional[Any] = None,
 ):
     """Month selector that can be rendered either in the main area or sidebar."""
 
     mopts = month_options(df)
-    widget = st.sidebar if sidebar else st
+    widget = container or (st.sidebar if sidebar else st)
     if not mopts:
         widget.caption("対象となる月がありません。")
         return None
@@ -4215,6 +4386,230 @@ def _render_sales_tab(
         f"{top_share:.1f}%" if top_share is not None else "—",
     )
 
+    st.markdown("##### トレンドと可視化切替")
+    if monthly_trend.empty:
+        render_status_message(
+            "empty",
+            key="sales_trend_empty",
+            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
+            guide="データ取込や期間設定を確認してください。",
+        )
+    else:
+        viz_options = {"折れ線": "line", "ヒートマップ": "heatmap", "散布図": "scatter"}
+        viz_choice = st.radio(
+            "ビジュアライゼーション形式",
+            list(viz_options.keys()),
+            key="sales_chart_variant",
+            horizontal=True,
+            help="グラフタイプを切り替えて異常値や注目SKUを見つけやすくします。",
+        )
+        choice_key = viz_options[viz_choice]
+        chart_df = monthly_trend.copy()
+        chart_df["display_sales"] = chart_df["sales_amount_jpy"] / unit_scale
+        chart_df["prev_sales"] = chart_df["display_sales"].shift(12)
+        chart_df["month_label"] = chart_df["month_dt"].dt.strftime("%Y-%m")
+        fig = None
+        download_df = pd.DataFrame()
+
+        if choice_key == "line":
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    x=chart_df["month_dt"],
+                    y=chart_df["display_sales"],
+                    name="売上",
+                    mode="lines+markers",
+                    line=dict(color=PRIMARY_COLOR, width=3),
+                    hovertemplate=f"%{{x|%Y-%m}}<br>売上: %{{y:,.0f}} {unit}<extra></extra>",
+                )
+            )
+            if chart_df["prev_sales"].notna().any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=chart_df["month_dt"],
+                        y=chart_df["prev_sales"],
+                        name="前年同月",
+                        mode="lines",
+                        line=dict(color=ACCENT_COLOR, dash="dot", width=2),
+                        hovertemplate=f"%{{x|%Y-%m}}<br>前年同月: %{{y:,.0f}} {unit}<extra></extra>",
+                    )
+                )
+            peak_idx = chart_df["display_sales"].idxmax()
+            if pd.notna(peak_idx):
+                peak_row = chart_df.loc[peak_idx]
+                fig.add_annotation(
+                    x=peak_row["month_dt"],
+                    y=peak_row["display_sales"],
+                    text=f"最高値 {peak_row['display_sales']:.1f} {unit}",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowcolor=ACCENT_COLOR,
+                    bgcolor="rgba(255,255,255,0.85)",
+                    bordercolor=ACCENT_COLOR,
+                    font=dict(color=ACCENT_COLOR, size=12),
+                )
+            fig.update_yaxes(title=f"売上 ({unit})", tickformat=",.0f")
+            fig.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
+            fig.update_layout(
+                height=420,
+                margin=dict(l=10, r=10, t=60, b=10),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
+            )
+            download_df = chart_df[[
+                "month_label",
+                "display_sales",
+                "prev_sales",
+                "delta",
+                "yoy",
+            ]].rename(
+                columns={
+                    "month_label": "月",
+                    "display_sales": f"売上({unit})",
+                    "prev_sales": f"前年同月({unit})",
+                    "delta": f"Δ({unit})",
+                    "yoy": "YoY（％）",
+                }
+            )
+            download_df["YoY（％）"] = download_df["YoY（％）"] * 100.0
+        elif choice_key == "heatmap":
+            top_products = (
+                filtered_monthly.groupby(["product_code", "product_name"], as_index=False)[
+                    "sales_amount_jpy"
+                ]
+                .sum()
+                .sort_values("sales_amount_jpy", ascending=False)
+                .head(8)
+            )
+            if top_products.empty:
+                st.info("ヒートマップを描画する十分な商品データがありません。")
+            else:
+                top_codes = top_products["product_code"].tolist()
+                heat_source = filtered_monthly[
+                    filtered_monthly["product_code"].isin(top_codes)
+                ].copy()
+                heat_source["month_dt"] = pd.to_datetime(
+                    heat_source["month"], errors="coerce"
+                )
+                heat_source = heat_source.dropna(subset=["month_dt"])
+                heat_source["month_label"] = heat_source["month_dt"].dt.strftime("%Y-%m")
+                pivot_df = (
+                    heat_source.pivot_table(
+                        index="product_name",
+                        columns="month_label",
+                        values="sales_amount_jpy",
+                        aggfunc="sum",
+                        fill_value=0.0,
+                    )
+                    / unit_scale
+                )
+                pivot_df = pivot_df.sort_index(axis=1)
+                if pivot_df.empty:
+                    st.info("ヒートマップを描画できるデータがありません。")
+                else:
+                    fig = px.imshow(
+                        pivot_df,
+                        aspect="auto",
+                        color_continuous_scale="Blues",
+                        title="トップ商品の月次売上ヒートマップ",
+                        labels=dict(color=f"売上 ({unit})"),
+                    )
+                    max_index = np.unravel_index(
+                        np.argmax(pivot_df.to_numpy()), pivot_df.shape
+                    )
+                    max_product = pivot_df.index[max_index[0]]
+                    max_month = pivot_df.columns[max_index[1]]
+                    max_value = pivot_df.iat[max_index[0], max_index[1]]
+                    fig.add_annotation(
+                        x=max_month,
+                        y=max_product,
+                        text=f"最大 {max_value:,.1f} {unit}",
+                        showarrow=False,
+                        font=dict(color=ERROR_COLOR, size=12),
+                        bgcolor="rgba(255,255,255,0.9)",
+                        bordercolor=ERROR_COLOR,
+                        borderwidth=1,
+                    )
+                    fig.update_layout(
+                        xaxis_title="月",
+                        yaxis_title="商品",
+                        margin=dict(l=10, r=10, t=60, b=10),
+                    )
+                    download_df = pivot_df.reset_index()
+        elif choice_key == "scatter":
+            scatter_df = chart_df.dropna(subset=["display_sales"]).copy()
+            scatter_df["yoy_pct"] = scatter_df["yoy"] * 100.0
+            scatter_df["delta_display"] = scatter_df["delta"] / unit_scale
+            if scatter_df.empty:
+                st.info("散布図を描画できるデータが不足しています。")
+            else:
+                fig = px.scatter(
+                    scatter_df,
+                    x="month_dt",
+                    y="display_sales",
+                    size=scatter_df["delta_display"].abs() + 1,
+                    color="yoy_pct",
+                    color_continuous_scale="RdYlGn",
+                    title="売上 × YoY 散布図",
+                    labels={
+                        "month_dt": "月",
+                        "display_sales": f"売上 ({unit})",
+                        "yoy_pct": "YoY（％）",
+                    },
+                )
+                average_sales = scatter_df["display_sales"].mean()
+                fig.add_hline(
+                    y=average_sales,
+                    line=dict(color=MUTED_COLOR, dash="dot"),
+                    annotation_text=f"平均 {average_sales:.1f} {unit}",
+                    annotation_position="bottom right",
+                )
+                fig.update_layout(
+                    margin=dict(l=10, r=10, t=60, b=10),
+                    coloraxis_colorbar=dict(title="YoY（％）"),
+                )
+                download_df = scatter_df[[
+                    "month_label",
+                    "display_sales",
+                    "delta_display",
+                    "yoy_pct",
+                ]].rename(
+                    columns={
+                        "month_label": "月",
+                        "display_sales": f"売上({unit})",
+                        "delta_display": f"Δ({unit})",
+                        "yoy_pct": "YoY（％）",
+                    }
+                )
+
+        if fig is not None:
+            fig = apply_elegant_theme(
+                fig, theme=st.session_state.get("ui_theme", "light")
+            )
+            render_plotly_with_spinner(
+                fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
+            )
+            if not download_df.empty:
+                trend_cols = st.columns([2, 1])
+                csv_bytes = download_df.to_csv(index=False).encode("utf-8-sig")
+                with trend_cols[0]:
+                    st.download_button(
+                        "トレンドCSVをダウンロード",
+                        data=csv_bytes,
+                        file_name=f"sales_trend_{choice_key}.csv",
+                        mime="text/csv",
+                        help="選択中のグラフに対応したデータをCSVで保存します。",
+                        key=f"sales_trend_csv_{choice_key}",
+                    )
+                with trend_cols[1]:
+                    st.button(
+                        "SKU詳細ページを開く",
+                        on_click=set_active_page,
+                        kwargs={"page_key": "detail", "rerun_on_lock": True},
+                        use_container_width=True,
+                        help="個別SKUのトレンドをさらに掘り下げます。",
+                        key=f"sales_trend_detail_{choice_key}",
+                    )
+
     snapshot_year = pd.DataFrame()
     if (
         year_df is not None
@@ -4299,54 +4694,6 @@ def _render_sales_tab(
         "前月差": delta_label or "—",
         "トップ商品構成比": f"{top_share:.1f}%" if top_share is not None else "—",
     }
-
-    st.markdown("##### トレンド")
-    if monthly_trend.empty:
-        render_status_message(
-            "empty",
-            key="sales_trend_empty",
-            on_modify=lambda: set_active_page("settings", rerun_on_lock=True),
-            guide="データ取込や期間設定を確認してください。",
-        )
-    else:
-        trend_display = monthly_trend.copy()
-        trend_display["month"] = pd.to_datetime(trend_display["month"])
-        trend_display = trend_display.sort_values("month")
-        trend_display["売上"] = trend_display["sales_amount_jpy"] / unit_scale
-        trend_display["前年売上"] = trend_display["売上"].shift(12)
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=trend_display["month"],
-                y=trend_display["売上"],
-                name="売上",
-                mode="lines+markers",
-                line=dict(color=PRIMARY_COLOR, width=3),
-                hovertemplate=f"%{{x|%Y-%m}}<br>売上: %{{y:,.0f}} {unit}<extra></extra>",
-            )
-        )
-        if trend_display["前年売上"].notna().any():
-            fig.add_trace(
-                go.Scatter(
-                    x=trend_display["month"],
-                    y=trend_display["前年売上"],
-                    name="前年同月",
-                    mode="lines",
-                    line=dict(color=ACCENT_COLOR, dash="dot", width=2),
-                    hovertemplate=f"%{{x|%Y-%m}}<br>前年同月: %{{y:,.0f}} {unit}<extra></extra>",
-                )
-            )
-        fig.update_yaxes(title=f"売上 ({unit})", tickformat=",.0f")
-        fig.update_xaxes(title="月", tickformat="%Y-%m", dtick="M1")
-        fig.update_layout(
-            height=420,
-            margin=dict(l=10, r=10, t=40, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.0),
-        )
-        fig = apply_elegant_theme(fig, theme=st.session_state.get("ui_theme", "light"))
-        render_plotly_with_spinner(
-            fig, config=PLOTLY_CONFIG, spinner_text=SPINNER_MESSAGE
-        )
 
     st.markdown("##### 構成分析")
     comp_cols = st.columns(2)
@@ -5684,13 +6031,95 @@ def choose_amount_slider_unit(max_amount: int) -> tuple[int, str]:
     return units[-1]
 
 
-def int_input(label: str, value: int) -> int:
+def validated_number_input(
+    label: str,
+    *,
+    value: float,
+    min_allowed: Optional[float] = None,
+    max_allowed: Optional[float] = None,
+    step: Optional[float] = None,
+    format: Optional[str] = None,
+    help_text: Optional[str] = None,
+    key: Optional[str] = None,
+) -> float:
+    """Render a number input with range validation feedback."""
+
+    container = st.container()
+    input_kwargs: Dict[str, object] = {"value": value}
+    if step is not None:
+        input_kwargs["step"] = step
+    if format is not None:
+        input_kwargs["format"] = format
+    if help_text is not None:
+        input_kwargs["help"] = help_text
+    if key is not None:
+        input_kwargs["key"] = key
+
+    number = container.number_input(label, **input_kwargs)
+    warnings: List[str] = []
+    if min_allowed is not None and number < min_allowed:
+        warnings.append(f"{label}は{min_allowed:g}以上で入力してください。")
+    if max_allowed is not None and number > max_allowed:
+        warnings.append(f"{label}は{max_allowed:g}以下で入力してください。")
+    if warnings:
+        warning_html = "<br>".join(html.escape(message) for message in warnings)
+        container.markdown(
+            """
+            <div class="input-warning">
+              {message}
+              <span class="input-warning__tip">範囲を確認し、推奨値内で再入力してください。</span>
+            </div>
+            """.format(message=warning_html),
+            unsafe_allow_html=True,
+        )
+    return float(number)
+
+
+def int_input(
+    label: str,
+    value: int,
+    *,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+    help_text: Optional[str] = None,
+) -> int:
     """Text input for integer values displayed with thousands separators."""
-    text = st.text_input(label, format_int(value))
-    try:
-        return int(text.replace(",", ""))
-    except ValueError:
+
+    container = st.container()
+    text = container.text_input(label, format_int(value), help=help_text)
+    sanitized = text.replace(",", "").strip()
+    if not sanitized:
+        container.markdown(
+            "<div class='input-warning'>数値を入力してください。</div>",
+            unsafe_allow_html=True,
+        )
         return value
+    try:
+        parsed = int(sanitized)
+    except ValueError:
+        container.markdown(
+            "<div class='input-warning'>数値形式で入力してください。</div>",
+            unsafe_allow_html=True,
+        )
+        return value
+
+    warnings: List[str] = []
+    if min_value is not None and parsed < min_value:
+        warnings.append(f"{label}は{min_value:,}以上が必要です。")
+    if max_value is not None and parsed > max_value:
+        warnings.append(f"{label}は{max_value:,}以下にしてください。")
+    if warnings:
+        warning_html = "<br>".join(html.escape(message) for message in warnings)
+        container.markdown(
+            """
+            <div class="input-warning">
+              {message}
+              <span class="input-warning__tip">値を調整すると最新の分析結果が正しく反映されます。</span>
+            </div>
+            """.format(message=warning_html),
+            unsafe_allow_html=True,
+        )
+    return parsed
 
 
 def render_sidebar_summary() -> Optional[str]:
@@ -7225,6 +7654,51 @@ def render_step_guide(active_nav_key: str) -> None:
     )
 
 
+def render_glossary_faq() -> None:
+    """Display glossary chips and frequently asked questions."""
+
+    st.markdown("<div id='glossary'></div>", unsafe_allow_html=True)
+    glossary_items = [
+        ("年計", "直近12ヶ月の売上または粗利を合計した指標です。"),
+        ("YoY", "Year over Year。前年同月比で増減率を確認します。"),
+        ("Δ", "デルタ。前月からの金額差分を意味します。"),
+        ("HHI", "Herfindahl-Hirschman Index。SKU構成比の集中度を測定します。"),
+    ]
+    glossary_html = "".join(
+        """
+        <span class="glossary-term has-tooltip" data-tooltip="{tooltip}">{label}</span>
+        """.format(
+            label=html.escape(label),
+            tooltip=html.escape(desc, quote=True).replace("\n", "&#10;"),
+        )
+        for label, desc in glossary_items
+    )
+    st.markdown(
+        """
+        <div class="glossary-cloud" role="list" aria-label="主要指標の用語集">
+            {badges}
+        </div>
+        """.format(badges=glossary_html),
+        unsafe_allow_html=True,
+    )
+    with st.expander("専門用語ガイド", expanded=False):
+        st.markdown(
+            "- **年計（ローリング12ヶ月）**: 直近12ヶ月の累計で季節変動を平準化します。\n"
+            "- **YoY**: 前年同月比で伸長率を捉えます。100%を上回ると前年より成長、下回ると縮小です。\n"
+            "- **Δ（デルタ）**: 前月との差分です。プラスは増加、マイナスは減少を示します。\n"
+            "- **HHI**: SKU構成比の二乗和で偏りを評価します。1に近いほど特定SKUに集中しています。"
+        )
+    with st.expander("FAQ", expanded=False):
+        st.markdown(
+            "- **Q. データを更新したら何を確認すれば良いですか？**\n"
+            "  - A. まずデータ品質カードで欠測が無いかチェックし、ダッシュボードで主要KPIを確認してください。\n"
+            "- **Q. 指標の単位を変更できますか？**\n"
+            "  - A. サイドバーのフィルター内にある『表示単位』から円・千円・百万円を切り替えられます。\n"
+            "- **Q. 異常値が検出された場合は？**\n"
+            "  - A. 異常検知ページで詳細を確認し、必要に応じてアラート条件を調整して再計算してください。"
+        )
+
+
 def render_getting_started_intro() -> None:
     """Show a short how-to guide with step hints and a demo video."""
 
@@ -7924,6 +8398,87 @@ def render_quick_nav_tabs(active_page_key: str) -> None:
                     caption_parts.append("現在表示中")
                 if caption_parts:
                     st.caption(" ｜ ".join(caption_parts))
+
+
+def reset_analysis_filters() -> None:
+    """Clear sidebar-driven filters so users can revert exploratory actions."""
+
+    st.session_state["filters"] = {}
+    keys_to_clear = [
+        key
+        for key in list(st.session_state.keys())
+        if key.startswith(
+            (
+                "sidebar_",
+                "rank_filter_",
+                "dashboard_",
+                "compare_",
+                "detail_",
+                "corr_",
+                "alert_",
+            )
+        )
+        or key in {
+            "end_month_dash",
+            "copilot_answer",
+            "copilot_context",
+            "dashboard_last_filters",
+            "dashboard_last_updated",
+        }
+    ]
+    for key in keys_to_clear:
+        st.session_state.pop(key, None)
+
+
+def _handle_reset_click() -> None:
+    reset_analysis_filters()
+    st.session_state["reset_feedback"] = "表示条件とフィルターを初期状態に戻しました。"
+    st.rerun()
+
+
+def render_navigation_actions(active_page_key: str) -> None:
+    """Render reset/back controls below the breadcrumb for quick access."""
+
+    prev_page = st.session_state.get("previous_page_key")
+    action_box = st.container()
+    with action_box:
+        st.markdown(
+            "<div class='nav-action-bar' role='group' aria-label='画面操作のショートカット'>",
+            unsafe_allow_html=True,
+        )
+        action_cols = st.columns([1, 1, 1])
+        with action_cols[0]:
+            st.button(
+                "🔄 リセット",
+                on_click=_handle_reset_click,
+                use_container_width=True,
+                help="フィルターや表示条件を初期化して再読み込みします。",
+            )
+        with action_cols[1]:
+            if prev_page and prev_page != active_page_key:
+                st.button(
+                    "⬅️ 戻る",
+                    on_click=set_active_page,
+                    kwargs={"page_key": prev_page, "rerun_on_lock": True},
+                    use_container_width=True,
+                    help="直前に表示していたページへ戻ります。",
+                    key="nav_back_button",
+                )
+            else:
+                st.button(
+                    "⬅️ 戻る",
+                    disabled=True,
+                    use_container_width=True,
+                    key="nav_back_button_disabled",
+                )
+        with action_cols[2]:
+            st.link_button(
+                "📘 FAQ / 用語集",
+                url="#glossary",
+                use_container_width=True,
+                help="専門用語の解説とよくある質問を表示します。",
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
 if st.session_state.get("tour_active", True) and TOUR_STEPS:
     initial_idx = max(0, min(st.session_state.get("tour_step_index", 0), len(TOUR_STEPS) - 1))
     default_key = TOUR_STEPS[initial_idx]["nav_key"]
@@ -8031,6 +8586,10 @@ if st.session_state.get("nav_page") != target_page_key:
     set_active_page(target_page_key, rerun_on_lock=True)
 
 page_key = st.session_state.get("nav_page", target_page_key)
+previous_key = st.session_state.get("current_page_key")
+if previous_key and previous_key != page_key:
+    st.session_state["previous_page_key"] = previous_key
+st.session_state["current_page_key"] = page_key
 page = page_lookup[page_key]
 page_meta = SIDEBAR_PAGE_LOOKUP.get(page_key, {})
 current_category = page_meta.get("category")
@@ -8225,90 +8784,91 @@ if year_df is not None and not year_df.empty:
     if page == "ダッシュボード":
         pass
     elif page == "ランキング":
-        st.sidebar.subheader("期間選択")
-        sidebar_state["rank_end_month"] = end_month_selector(
-            year_df,
-            key="end_month_rank",
-            label="ランキング対象月",
-            sidebar=True,
-        )
-        if sidebar_state["rank_end_month"]:
-            st.session_state.filters["end_month"] = sidebar_state["rank_end_month"]
-        st.sidebar.subheader("評価指標")
-        template_profile = get_template_config().get("financial_profile", {})
-        metric_options = _ranking_metric_options(template_profile)
-        selected_metric = st.sidebar.selectbox(
-            "表示指標",
-            metric_options,
-            format_func=lambda opt: opt[0],
-            key="sidebar_rank_metric",
-        )
-        sidebar_state["rank_metric"] = selected_metric[1]
-        order_options = [
-            ("降順 (大きい順)", "desc"),
-            ("昇順 (小さい順)", "asc"),
-        ]
-        selected_order = st.sidebar.selectbox(
-            "並び順",
-            order_options,
-            format_func=lambda opt: opt[0],
-            key="sidebar_rank_order",
-        )
-        sidebar_state["rank_order"] = selected_order[1]
-        sidebar_state["rank_hide_zero"] = st.sidebar.checkbox(
-            "年計ゼロを除外",
-            value=True,
-            key="sidebar_rank_hide_zero",
-        )
-        sidebar_state["rank_limit"] = st.sidebar.slider(
-            "表示件数",
-            min_value=5,
-            max_value=30,
-            value=int(st.session_state.get("sidebar_rank_limit", 10)),
-            step=1,
-            help="Top/Bottomランキングで表示する件数です。",
-            key="sidebar_rank_limit",
-        )
+        st.sidebar.subheader("ランキング条件")
+        rank_tabs = st.sidebar.tabs(["対象期間", "評価指標", "表示件数"])
+        with rank_tabs[0]:
+            sidebar_state["rank_end_month"] = end_month_selector(
+                year_df,
+                key="end_month_rank",
+                label="ランキング対象月",
+                container=rank_tabs[0],
+            )
+            if sidebar_state["rank_end_month"]:
+                st.session_state.filters["end_month"] = sidebar_state["rank_end_month"]
+        with rank_tabs[1]:
+            template_profile = get_template_config().get("financial_profile", {})
+            metric_options = _ranking_metric_options(template_profile)
+            selected_metric = rank_tabs[1].selectbox(
+                "表示指標",
+                metric_options,
+                format_func=lambda opt: opt[0],
+                key="sidebar_rank_metric",
+                help="KPIを切り替えて別視点のランキングを作成します。",
+            )
+            sidebar_state["rank_metric"] = selected_metric[1]
+            order_options = [
+                ("降順 (大きい順)", "desc"),
+                ("昇順 (小さい順)", "asc"),
+            ]
+            selected_order = rank_tabs[1].selectbox(
+                "並び順",
+                order_options,
+                format_func=lambda opt: opt[0],
+                key="sidebar_rank_order",
+            )
+            sidebar_state["rank_order"] = selected_order[1]
+            sidebar_state["rank_hide_zero"] = rank_tabs[1].checkbox(
+                "年計ゼロを除外",
+                value=True,
+                key="sidebar_rank_hide_zero",
+                help="年計が0のSKUを除外してランキングをクリアにします。",
+            )
+        with rank_tabs[2]:
+            sidebar_state["rank_limit"] = rank_tabs[2].slider(
+                "表示件数",
+                min_value=5,
+                max_value=30,
+                value=int(st.session_state.get("sidebar_rank_limit", 10)),
+                step=1,
+                help="Top/Bottomランキングで表示する件数です。",
+                key="sidebar_rank_limit",
+            )
     elif page == "比較ビュー":
-        st.sidebar.subheader("期間選択")
-        sidebar_state["compare_end_month"] = end_month_selector(
-            year_df,
-            key="compare_end_month",
-            label="比較対象月",
-            sidebar=True,
-        )
-        if sidebar_state["compare_end_month"]:
-            st.session_state.filters["end_month"] = sidebar_state["compare_end_month"]
+        with st.sidebar.expander("期間と対象", expanded=True):
+            sidebar_state["compare_end_month"] = end_month_selector(
+                year_df,
+                key="compare_end_month",
+                label="比較対象月",
+            )
+            if sidebar_state["compare_end_month"]:
+                st.session_state.filters["end_month"] = sidebar_state["compare_end_month"]
     elif page == "SKU詳細":
-        st.sidebar.subheader("期間選択")
-        sidebar_state["detail_end_month"] = end_month_selector(
-            year_df,
-            key="end_month_detail",
-            label="詳細確認月",
-            sidebar=True,
-        )
-        if sidebar_state["detail_end_month"]:
-            st.session_state.filters["end_month"] = sidebar_state["detail_end_month"]
+        with st.sidebar.expander("期間と対象", expanded=True):
+            sidebar_state["detail_end_month"] = end_month_selector(
+                year_df,
+                key="end_month_detail",
+                label="詳細確認月",
+            )
+            if sidebar_state["detail_end_month"]:
+                st.session_state.filters["end_month"] = sidebar_state["detail_end_month"]
     elif page == "相関分析":
-        st.sidebar.subheader("期間選択")
-        sidebar_state["corr_end_month"] = end_month_selector(
-            year_df,
-            key="corr_end_month",
-            label="分析対象月",
-            sidebar=True,
-        )
-        if sidebar_state["corr_end_month"]:
-            st.session_state.filters["end_month"] = sidebar_state["corr_end_month"]
+        with st.sidebar.expander("期間と対象", expanded=True):
+            sidebar_state["corr_end_month"] = end_month_selector(
+                year_df,
+                key="corr_end_month",
+                label="分析対象月",
+            )
+            if sidebar_state["corr_end_month"]:
+                st.session_state.filters["end_month"] = sidebar_state["corr_end_month"]
     elif page == "アラート":
-        st.sidebar.subheader("期間選択")
-        sidebar_state["alert_end_month"] = end_month_selector(
-            year_df,
-            key="end_month_alert",
-            label="評価対象月",
-            sidebar=True,
-        )
-        if sidebar_state["alert_end_month"]:
-            st.session_state.filters["end_month"] = sidebar_state["alert_end_month"]
+        with st.sidebar.expander("期間と対象", expanded=True):
+            sidebar_state["alert_end_month"] = end_month_selector(
+                year_df,
+                key="end_month_alert",
+                label="評価対象月",
+            )
+            if sidebar_state["alert_end_month"]:
+                st.session_state.filters["end_month"] = sidebar_state["alert_end_month"]
 
 st.sidebar.divider()
 
@@ -8364,6 +8924,7 @@ render_onboarding_modal()
 render_tour_banner()
 
 render_step_guide(page_key)
+render_glossary_faq()
 
 active_category = (
     st.session_state.get("nav_category")
@@ -8372,6 +8933,11 @@ active_category = (
 )
 render_breadcrumbs(active_category, page_key)
 render_quick_nav_tabs(page_key)
+render_navigation_actions(page_key)
+
+reset_message = st.session_state.pop("reset_feedback", None)
+if reset_message:
+    st.success(reset_message)
 
 if st.session_state.get("sample_data_notice"):
     notice_text = st.session_state.get("sample_data_message") or (
@@ -9925,32 +10491,40 @@ elif page == "ダッシュボード":
 
     with st.sidebar:
         st.subheader("ダッシュボードフィルター")
-        store_value = st.selectbox(
-            "店舗",
-            store_options,
-            index=store_index,
-            key="dashboard_store",
-        )
-        period_value = st.selectbox(
-            "期間",
-            period_options,
-            index=period_index,
-            key="sidebar_period",
-            format_func=lambda v: f"{v}ヶ月",
-        )
-        base_month_date = st.date_input(
-            "基準月",
-            value=default_base_date,
-            min_value=min_month,
-            max_value=max_month,
-            key="dashboard_base_month_input",
-        )
-        unit_value = st.selectbox(
-            "表示単位",
-            unit_options,
-            index=unit_index,
-            key="sidebar_unit",
-        )
+        dash_tabs = st.tabs(["期間設定", "表示単位", "店舗"])
+        with dash_tabs[0]:
+            period_value = st.selectbox(
+                "期間",
+                period_options,
+                index=period_index,
+                key="sidebar_period",
+                format_func=lambda v: f"{v}ヶ月",
+                help="年計の計算対象期間を切り替えます。",
+            )
+            base_month_date = st.date_input(
+                "基準月",
+                value=default_base_date,
+                min_value=min_month,
+                max_value=max_month,
+                key="dashboard_base_month_input",
+                help="集計結果を確認したい最終月を選択します。",
+            )
+        with dash_tabs[1]:
+            unit_value = st.selectbox(
+                "表示単位",
+                unit_options,
+                index=unit_index,
+                key="sidebar_unit",
+                help="グラフとテーブルの金額表示単位を選択します。",
+            )
+        with dash_tabs[2]:
+            store_value = st.selectbox(
+                "店舗",
+                store_options,
+                index=store_index,
+                key="dashboard_store",
+                help="特定店舗のみ分析する場合はここで切り替えます。",
+            )
         st.caption("条件を変更するとダッシュボード全体が更新されます。")
 
     active_end_month = base_month_date.strftime("%Y-%m")
@@ -12288,16 +12862,31 @@ elif page == "設定":
             step=1,
         )
     with c2:
-        s["yoy_threshold"] = st.number_input(
-            "YoY 閾値（<=）", value=float(s["yoy_threshold"]), step=0.01, format="%.2f"
+        s["yoy_threshold"] = validated_number_input(
+            "YoY 閾値（<=）",
+            value=float(s["yoy_threshold"]),
+            min_allowed=-1.0,
+            max_allowed=1.0,
+            step=0.01,
+            format="%.2f",
+            help_text="-1.00〜1.00（-100%〜100%）の範囲で指定します。",
         )
-        s["delta_threshold"] = int_input("Δ 閾値（<= 円）", int(s["delta_threshold"]))
+        s["delta_threshold"] = int_input(
+            "Δ 閾値（<= 円）",
+            int(s["delta_threshold"]),
+            min_value=-10_000_000,
+            max_value=10_000_000,
+            help_text="月次の前月差がこの値以下の場合にアラートを発火します。",
+        )
     with c3:
-        s["slope_threshold"] = st.number_input(
+        s["slope_threshold"] = validated_number_input(
             "傾き 閾値（<=）",
             value=float(s["slope_threshold"]),
+            min_allowed=-1000.0,
+            max_allowed=1000.0,
             step=0.1,
             format="%.2f",
+            help_text="直近N期間の回帰傾きを閾値として設定します。",
         )
         s["currency_unit"] = st.selectbox(
             "通貨単位表記",
